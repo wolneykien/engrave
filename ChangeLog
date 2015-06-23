@@ -1,0 +1,19 @@
+2015-06-24 Paul Wolneykien <manowar@altlinux.org>
+
+  * engrave: Version 0.6.1: The first public release!
+
+2008-08-24 Paul Wolneykien <manowar@altlinux.org>
+
+  * engrave: fix of the EPS preview inclution error.
+
+2008-04-05 Paul Wolneykien <paul@adaptivescreening.org>
+
+  * bg: a new filter for testing purposes.
+
+2008-02-12 Paul Wolneykien <paul@adaptivescreening.org>
+
+  * engrave: revisited version with weight-function tiles.
+
+2004-12-02  Paul Wolneykien  <paul@adaptivescreening.org>
+
+  * engrave: initial version.

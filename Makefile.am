@@ -1,0 +1,1 @@
+SUBDIRS = share filters bin

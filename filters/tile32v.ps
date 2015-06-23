@@ -1,0 +1,423 @@
+%
+%  engrave --- preparation of image files for adaptive screening
+%              in a conventional RIP (Raster Image Processor).
+%
+%  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+%
+%  This program is free software: you can redistribute it and/or
+%  modify it under the terms of the GNU Affero General Public License
+%  as published by the Free Software Foundation, either version 3 of
+%  the License, or (at your option) any later version.
+%
+%  This program is distributed in the hope that it will be useful,
+%  but WITHOUT ANY WARRANTY; without even the implied warranty of
+%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%  GNU Affero General Public License for more details.
+%
+%  You should have received a copy of the GNU Affero General Public
+%  License along with this program.  If not, see
+%  <http://www.gnu.org/licenses/>.
+%
+%  Contact information:
+%
+%  The High Definition Screening project:
+%    <https://github.com/wolneykien/engrave/>.
+%
+%  Yuri Kuznetsov <yurivk@mail.ru).
+%
+%  Paul Wolneykien <manowar@altlinux.org).
+%
+%  The Graphic Arts Department of the
+%  North-West Institute of Printing of the
+%  Saint-Petersburg State University of Technology and Design
+%
+%  191180 Saint-Petersburg Jambula lane 13.
+%
+
+
+% Procedures for painting tiles
+
+% Define tile numbers
+
+/TILE_EMPTY 0 def	% empty tile
+/TILE_NL 1 def		% Vertical line
+/TILE_WL 2 def		% Horizontal line
+/TILE_NWL 3 def		% North-West diagonal line
+/TILE_NEL 4 def		% North-East diagonal line
+/TILE_WS 5 def		% West contour side
+/TILE_NS 6 def		% North contour side
+/TILE_ES 7 def		% East contour side
+/TILE_SS 8 def		% South contour side
+/TILE_NES 9 def		% North-East contour side
+/TILE_SES 10 def	% South-East contour side
+/TILE_SWS 11 def	% South-West contour side
+/TILE_NWS 12 def	% North-West contour side
+/TILE_WC 13 def		% West corner
+/TILE_NC 14 def		% North corner
+/TILE_EC 15 def		% East corner
+/TILE_SC 16 def		% South couner
+/TILE_NWC 17 def	% North-West couner
+/TILE_NEC 18 def	% North-East corner
+/TILE_SEC 19 def	% South-East corner
+/TILE_SWC 20 def	% South-West corner
+
+% Rotate procedures	% x y v rotate_XXX
+
+/rotate_NE {
+	3 1 roll	% v x y
+	translate	% v
+	-90 rotate
+	0 1 3 -1 roll	% 0 1 v
+} bind def
+
+/rotate_SE {
+	3 1 roll	% v x y
+	translate	% v
+	-180 rotate	% v
+	-1 1 3 -1 roll	% -1 1 v
+} bind def
+
+/rotate_SW {
+	3 1 roll	% v x y
+	translate	% v
+	90 rotate	% v
+	-1 0 3 -1 roll	% -1 0 v
+} bind def
+
+% Drawing procedures		x y v draw_XXX
+
+/draw_NL	{	% Vertical line
+	newpath
+	3 1 roll	% v x y
+	moveto		% v
+	0.5 0 rmoveto	% v
+	dup		% v v/2
+	2 div		% v v/2
+	dup 0 rlineto	% v v/2
+	0 -1 rlineto	% v v/2
+	exch		% v/2 v
+	neg 0		% v/2 -v 0
+	rlineto		% v/2
+	0 1 rlineto	% v/2
+	0 rlineto	%
+	closepath
+	fill
+} bind def
+
+/draw_WL	{	% Horizontal line
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NL
+	setmatrix
+} bind def
+
+/draw_NWL	{	% North-West diagonal line
+	newpath
+	3 1 roll	% v x y
+	moveto		% v
+	dup 0 rlineto	% v
+	dup 		% v v
+	dup neg 1 add	% v v 1-v
+	dup 3 1 roll	% v 1-v v 1-v
+	dup neg		% v 1-v v 1-v -(1-v)
+	rlineto		% v 1-v v
+	neg dup 0 exch	% v 1-v -v 0 -v
+	rlineto		% v 1-v -v
+	0 rlineto	% v 1-v
+	neg dup	neg	% v -(1-v) (1-v)
+	rlineto		% v
+	0 exch		% 0 v
+	rlineto		%
+	closepath
+	fill
+} bind def
+
+/draw_NEL	{	% North-East diagonal line
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NWL
+	setmatrix
+} bind def
+
+/draw_WS	{	% West contour side
+	-1 rectfill	% draws rectangle
+} bind def
+
+/draw_NS	{	% North contour side
+	1 exch neg	% dx = 1, dy = -v
+	rectfill	% draws rectangle
+} bind def
+
+/draw_ES	{	% East contour side
+	neg		% x y -v
+	3 -1 roll	% y -v x
+	1 add		% y -v x+1
+	3 1 roll	% x+1 y -v
+	-1 rectfill	% draws rectangle
+} bind def
+
+/draw_SS	{	% South contour side
+	neg dup 1 add	% x y -v (1-v)
+	3 -1 roll	% x -v (1-v) y
+	exch sub	% x -v y-(1-v)
+	exch		% x y-(1-v) -v
+	1 exch		% x y-(1-v) 1 -v
+	rectfill	% draws rectangle
+} bind def
+
+/draw_NWS	{	% North-West side
+	newpath
+	3 1 roll	% v x y
+	moveto		% v 
+	dup 0.5 le {	% if v <= 0.5
+		2 mul		% v*2
+		dup 0		% v*2 v*2 0
+		rlineto		% v*2
+		dup neg dup	% v*2 -v*2 -v*2
+		rlineto		% v*2
+		0 exch		% 0 v*2
+		rlineto		%
+	} {	% else
+		1 0 rlineto	% v
+		0.5 sub		% v-0.5
+		2 mul		% 2*(v-0.5)
+		neg dup 0 exch	% -2*(v-0.5) 0 -2*(v-0.5)
+		rlineto		% -2*(v-0.5) 
+		dup 1 add	% -2*(v-0.5) 1-2*(v-0.5)
+		neg dup		% -2*(v-0.5) -(1-2*(v-0.5)) -(1-2*(v-0.5))
+		rlineto		% -2*(v-0.5)
+		0 rlineto	%
+		0 1 rlineto	%
+	} ifelse
+	closepath
+	fill		% fills polygon
+} bind def
+
+/draw_NES	{	% North-East side
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NWS
+	setmatrix	% restores matrix
+} bind def
+
+/draw_SES	{	% South-East side
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SE
+	draw_NWS
+	setmatrix	% restores matrix	
+} bind def
+
+/draw_SWS	{	% South-West side
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SW
+	draw_NWS
+	setmatrix	% restores matrix
+} bind def
+
+/draw_WC	{	% West corner
+	newpath
+	3 1 roll
+	moveto		% moves to x,y
+	dup 0.5 le {	% if v <= 0.5
+		dup		% v v
+		2 mul		% v 2*v
+		exch		% 2*v v
+		0 -0.5 rmoveto
+		dup 3 1 roll	% v 2*v v
+		0 exch		% v 2*v 0 v
+		rlineto		% v 2*v
+		2 copy		% v 2*v v 2*v
+		exch neg	% v 2*v 2*v -v
+		rlineto		% v 2*v
+		neg exch dup 	% -2*v v v
+		3 1 roll	% v -2*v v
+		neg		% v -2*v -v
+		rlineto		% v
+		0 exch		% 0 v
+		rlineto		%
+	} {	% else
+		0.5 sub		% v-0.5
+		2 mul		% 2*(v-0.5)
+		dup		% 2*(v-0.5) 2*(v-0.5)
+		0 rlineto	% 2*(v-0.5)
+		dup		% 2*(v-0.5) 2*(v-0.5)
+		dup neg 1 add	% 2*(v-0.5) 2*(v-0.5) 1-2*(v-0.5)
+		dup neg		% 2*(v-0.5) 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))
+		2 div		% 2*(v-0.5) 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2
+		2 copy		% 2*(v-0.5) 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2 1-2*(v-0.5) -(1-2*(v-0.5))/2
+		5 2 roll	% 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2
+		rlineto		% 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2 2*(v-0.5)
+		neg 0 exch	% 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2 0 -2*(v-0.5)
+		rlineto		% 2*(v-0.5) 1-2*(v-0.5) -(1-2*(v-0.5))/2
+		exch neg exch	% 2*(v-0.5) -(1-2*(v-0.5)) -(1-2*(v-0.5))/2
+		rlineto		% 2*(v-0.5)
+		neg		% -2*(v-0.5)
+		0 rlineto	%
+		0 1 rlineto 	%
+	} ifelse
+	closepath
+	fill		% fills the polygon
+} bind def
+
+/draw_NC	{	% North corner
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_WC
+	setmatrix	% restores matrix
+} bind def
+
+/draw_EC	{	% East corner
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SE
+	draw_WC
+	setmatrix	% restores matrix	
+} bind def
+
+/draw_SC	{	% West corner
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SW
+	draw_WC
+	setmatrix	% restores matrix
+} bind def
+
+/draw_NWC	{	% North-West corner
+	sqrt		% a = sqrt(v)
+	dup neg		% x y a -a
+	rectfill	% draws rectangle
+} bind def
+
+/draw_NEC	{	% North-East corner
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NWC
+	setmatrix	% restores matrix
+} bind def
+
+/draw_SEC	{	% South-East corner
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SE
+	draw_NWC
+	setmatrix	% restores matrix	
+} bind def
+
+/draw_SWC	{	% South-West corner
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SW
+	draw_NWC
+	setmatrix	% restores matrix
+} bind def
+
+% Drawing tiles reading their numbers and values from the file
+% <tile number><tile value><tile number><tile value>...
+% <FF><hi><lo> - horizontal space
+% <FF><FF><hi><lo> - vertical space
+% <FF><FF><FF> - end
+
+/dwt_read	{	% m f x y
+	3 -1 roll	% m x y f
+	dup	% m x y f f
+	read	% m x y f n true
+	{}	% if true do nothing	
+	{
+		cleartomark	% free data
+		(Error reading tiles information\n) print
+		quit
+	} ifelse	% m x y f n
+	exch 4 1 roll	% m f x y n 
+} bind def
+
+/stepx	{	% x y
+	exch 1 add exch	% x+1 y
+} bind def
+
+/drawtiles	{	% drawtiles
+	mark	% f m
+	exch	% m f
+	0 0	% m f x y
+	0	% m f x y 0
+	{	% loop
+		0 ne { (Unknown tile.Exit.\n) print cleartomark quit } if	% m f x y
+		dwt_read	% m f x y n 
+		dup		% m f x y n n
+		255 eq	% If it is 255
+		{	% m f x y n
+			pop		% m f x y
+			dwt_read	% m f x y n
+			dup		% m f x y n n
+			255 eq	% If it is 255
+			{	% m f x y n
+				pop		% m f x y
+				dwt_read	% m f x y n
+				dup		% m f x y n n
+				255 eq	% If it is 255
+				{	% then
+					cleartomark	% free data
+					exit		% exit
+				}
+				{	% m f x y n
+					8 bitshift	% m f x y n8
+					4 1 roll	% m n8 f x y
+					dwt_read	% m n8 f x y n
+					5 -1 roll	% m f x y n n8
+					or		% m f x y n8n
+					sub		% m f x y-n8n 
+					exch pop -1 exch % m f 0 y-n8n
+					0		% m f -1 y-n8n 0
+				} ifelse
+			}
+			{	% m f x y n
+				8 bitshift	% m f x y n8
+				4 1 roll	% m n8 f x y
+				dwt_read	% m n8 f x y n
+				5 -1 roll	% m f x y n n8
+				or		% m f x y n8n
+				3 -1 roll	% m f y n8n x
+				1 sub		% m f y n8n x-1
+				add exch	% m f x+n8n-1 y
+				0		% m f x+n8n-1 y 0
+			} ifelse
+		} if	% m f x y n
+		4 1 roll	% m n f x y
+		2 copy		% m n f x y x y
+		6 2 roll	% m x y n f x y
+		4 -1 roll	% m x y f x y n
+		dup TILE_EMPTY eq { pop pop pop 0 } if	% empty tile
+		dup TILE_NL eq { pop dwt_read 255 div draw_NL 0 } if	% Vertical line
+		dup TILE_WL eq { pop dwt_read 255 div draw_WL 0 } if	% Horizontal line
+		dup TILE_NWL eq { pop dwt_read 255 div draw_NWL 0 } if 	% North-West diagonal line
+		dup TILE_NEL eq { pop dwt_read 255 div draw_NEL 0 } if	% North-East diagonal line
+		dup TILE_WS eq { pop dwt_read 255 div draw_WS 0 } if	% West contour side
+		dup TILE_NS eq { pop dwt_read 255 div draw_NS 0 } if	% North contour side
+		dup TILE_ES eq { pop dwt_read 255 div draw_ES 0 } if	% East contour side
+		dup TILE_SS eq { pop dwt_read 255 div draw_SS 0 } if	% South contour side
+		dup TILE_NES eq { pop dwt_read 255 div draw_NES 0 } if	% North-East contour side
+		dup TILE_SES eq { pop dwt_read 255 div draw_SES 0 } if	% South-East contour side
+		dup TILE_SWS eq { pop dwt_read 255 div draw_SWS 0 } if	% South-West contour side
+		dup TILE_NWS eq { pop dwt_read 255 div draw_NWS 0 } if	% North-West contour side
+		dup TILE_WC eq { pop dwt_read 255 div draw_WC 0 } if	% West corner
+		dup TILE_NC eq { pop dwt_read 255 div draw_NC 0 } if	% North corner
+		dup TILE_EC eq { pop dwt_read 255 div draw_EC 0 } if	% East corner
+		dup TILE_SC eq { pop dwt_read 255 div draw_SC 0 } if	% South couner
+		dup TILE_NWC eq { pop dwt_read 255 div draw_NWC 0 } if	% North-West couner
+		dup TILE_NEC eq { pop dwt_read 255 div draw_NEC 0 } if	% North-East corner
+		dup TILE_SEC eq { pop dwt_read 255 div draw_SEC 0 } if	% South-East corner
+		dup TILE_SWC eq { pop dwt_read 255 div draw_SWC 0 } if	% South-West corner
+		% m x y f 0 | m x y f x y n
+		dup 0 eq
+			{ pop 3 1 roll stepx 0 }	% m f x+1 y 0
+			{ pop pop pop 3 1 roll 1 }	% m f x   y 1
+			ifelse
+	} loop	% loop end
+} bind def
+

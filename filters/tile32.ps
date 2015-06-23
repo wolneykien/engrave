@@ -1,0 +1,560 @@
+%
+%  engrave --- preparation of image files for adaptive screening
+%              in a conventional RIP (Raster Image Processor).
+%
+%  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+%
+%  This program is free software: you can redistribute it and/or
+%  modify it under the terms of the GNU Affero General Public License
+%  as published by the Free Software Foundation, either version 3 of
+%  the License, or (at your option) any later version.
+%
+%  This program is distributed in the hope that it will be useful,
+%  but WITHOUT ANY WARRANTY; without even the implied warranty of
+%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%  GNU Affero General Public License for more details.
+%
+%  You should have received a copy of the GNU Affero General Public
+%  License along with this program.  If not, see
+%  <http://www.gnu.org/licenses/>.
+%
+%  Contact information:
+%
+%  The High Definition Screening project:
+%    <https://github.com/wolneykien/engrave/>.
+%
+%  Yuri Kuznetsov <yurivk@mail.ru).
+%
+%  Paul Wolneykien <manowar@altlinux.org).
+%
+%  The Graphic Arts Department of the
+%  North-West Institute of Printing of the
+%  Saint-Petersburg State University of Technology and Design
+%
+%  191180 Saint-Petersburg Jambula lane 13.
+%
+
+
+% This file defines 6 weight-functions for the 6 types of geomtries in
+% the form of the 6x6 weight-matricies. The weight values are taken
+% from ranges from range 0 -- 255. Lower weights appear first.
+
+% The linear sequence of weight numbers from 00 to ff:
+%(0 7 e 15 1c 24 2b 32 39 40 47 4e 55 5c 64 6b 72 79 80 87 8e 95 9c a4 ab b2 b9 c0 c7 ce d5 dc e4 eb f2 f9)
+
+% Vertical line
+/ortline <
+    dc 87 32 07 5c b2
+
+    f2 9c 47 1c 72 c7
+
+    e4 8e 39 0e 64 b9
+
+    f9 a4 4e 24 79 ce
+
+    eb 95 40 15 6b c0
+
+    ff ab 55 2b 80 d5
+> def
+
+% NW - SE line
+/dialine <
+    07 55 95 c7 eb ff
+
+    32 1c 6b a4 d5 f2
+
+    79 47 0e 5c 9c ce
+
+    b2 87 39 24 72 ab
+
+    dc c0 80 4e 15 64
+
+    f9 e4 b9 8e 40 2b
+> def
+
+% W vertical contour
+/ortcontour <
+    07 32 5c 87 b2 dc
+
+    1c 47 72 9c c7 f2
+
+    0e 39 64 8e b9 e4
+
+    24 4e 79 a4 ce f9
+
+    15 40 6b 95 c0 eb
+
+    2b 55 80 ab d5 ff
+> def
+
+% SW contour
+/diacontour <
+    72 9c c0 dc f2 ff
+
+    4e 87 b2 ce eb f9
+
+    32 64 79 a4 c7 e4
+
+    1c 40 55 8e b9 d5
+
+    0e 2b 39 6b 80 ab
+
+    07 15 24 47 5c 95
+> def
+
+% NW corner
+/ortcorner <
+    07 0e 24 47 79 b9
+
+    15 1c 32 64 a4 e4
+
+    2b 39 40 55 87 c7
+
+    4e 6b 5c 72 b2 f2
+
+    80 9c 8e ab 95 d5
+
+    c0 eb ce f9 dc ff
+> def
+
+% W corner
+/diacorner <
+    32 64 8e b9 dc f9
+
+    1c 47 72 9c c7 eb
+
+    07 15 55 80 ab d5
+
+    0e 2b 39 5c 87 b2
+
+    24 4e 79 a4 ce f2
+
+    40 6b 95 c0 e4 ff
+> def
+
+% This procedure builds a bitmap datasource from the
+% table-specified weight-function and a signal value.
+
+% Input: size weigt-string result-bitmap-string value.
+% Output: result-bit-string.
+/cellmask {
+    /bytecount 0 def		% Set byte counter to 0.
+    /bitcount 7 def		% Set bit counter to 7.
+    /signal exch def		% Store signal value under /signal.
+    /cellbits exch def		% Store result string under /cellbits.
+    /cellbyte 0 def		% Set current byte vaue to 0.
+    exch /cellsize exch def 	% Store the cell size.
+    /rowpos 0 def		% Set row pointer to 0.
+    % For all of the weight values:
+    {
+	% if weight <= signal
+	signal le
+	{
+	    % calculate the bitcount power of 2,
+	    1 1 1 bitcount {pop 2 mul} for
+	    % set bitcount-th bit of the result;
+	    cellbyte or /cellbyte exch def
+	} if
+	% decrement the bitcount;
+	bitcount 1 sub
+	% increment rowpos
+	/rowpos rowpos 1 add def
+	% if copy of bitcount < 0 or rowpos = cellsize
+	dup 0 lt rowpos cellsize eq or {
+	    % put current byte to the result,
+	    cellbits bytecount cellbyte put
+	    % increment and store the byte counter,
+	    /bytecount bytecount 1 add def
+	    % reset current byte,
+	    /cellbyte 0 def
+	    % reset the bit counter;
+	    pop 7
+	    % reset the rowpos
+	    /rowpos 0 def
+	} if
+	% store the bit counter.
+	/bitcount exch def
+    } forall
+    % If bitcount < 7 put current byte to the result.
+    bitcount 7 lt {
+	cellbits bytecount cellbyte put
+    } if
+    % Push result on the operand stack.
+    cellbits
+} bind def
+
+% This procedure paints a halftone cell with current color.
+
+% Input: size weight-function value.
+% Output: none.
+
+/fillcell {
+    /cellsize 4 -1 roll def
+    cellsize 3 1 roll
+    cellsize 8.0 div ceiling cvi cellsize mul string exch
+    cellmask
+    cellsize cellsize true [ cellsize 0 0 cellsize neg 0 cellsize ]
+    5 -1 roll imagemask
+    fill
+} bind def
+
+% Defines a halftone cell font dicitonary
+
+% Input: size weight-function.
+% Output: font dictionary.
+
+/cellfontdic {
+    5 dict begin
+	/cellweights exch def
+	/cellsize exch def
+	/FontType 3 def			% Required elements of font.
+	/FontMatrix [1 0 0 1 0 0] def
+	/FontBBox [0 0 1 1] def
+	/Encoding 256 array def		% Trivial encoding vector.
+	    0 1 255 {
+		% Places character codes as names into the
+		% Encoding vector.
+		Encoding exch dup 3 string cvs cvn put
+	    } for
+	/BuildChar {
+	    exch begin
+	    1 0
+	    0 0 1 1
+	    setcachedevice
+	    cellsize cellweights 3 -1 roll
+	    end
+	    fillcell
+	} bind def
+	currentdict	% Push cell font dic onto the operand stack.
+    end
+} bind def
+
+% Difine tile fonts.
+
+/OrtLineTile 6 ortline cellfontdic definefont pop
+/DiaLineTile 6 dialine cellfontdic definefont pop
+/OrtContourTile 6 ortcontour cellfontdic definefont pop
+/DiaContourTile 6 diacontour cellfontdic definefont pop
+/OrtCornerTile 6 ortcorner cellfontdic definefont pop
+/DiaCornerTile 6 diacorner cellfontdic definefont pop
+
+% Tile code holdong string.
+/tilestr 1 string def
+
+% Procedures for painting tiles
+
+% Define tile numbers
+
+/TILE_EMPTY 0 def	% empty tile
+/TILE_NL 1 def		% Vertical line
+/TILE_WL 2 def		% Horizontal line
+/TILE_NWL 3 def		% North-West diagonal line
+/TILE_NEL 4 def		% North-East diagonal line
+/TILE_WS 5 def		% West contour side
+/TILE_NS 6 def		% North contour side
+/TILE_ES 7 def		% East contour side
+/TILE_SS 8 def		% South contour side
+/TILE_NES 9 def		% North-East contour side
+/TILE_SES 10 def	% South-East contour side
+/TILE_SWS 11 def	% South-West contour side
+/TILE_NWS 12 def	% North-West contour side
+/TILE_WC 13 def		% West corner
+/TILE_NC 14 def		% North corner
+/TILE_EC 15 def		% East corner
+/TILE_SC 16 def		% South couner
+/TILE_NWC 17 def	% North-West couner
+/TILE_NEC 18 def	% North-East corner
+/TILE_SEC 19 def	% South-East corner
+/TILE_SWC 20 def	% South-West corner
+
+% Rotate procedures	% x y v rotate_XXX
+
+/rotate_NE {
+	3 1 roll	% v x y
+	translate	% v
+	-90 rotate
+	-1 1 3 -1 roll	% 0 1 v
+} bind def
+
+/rotate_SE {
+	3 1 roll	% v x y
+	translate	% v
+	-180 rotate	% v
+	-1 0 3 -1 roll	% -1 1 v
+} bind def
+
+/rotate_SW {
+	3 1 roll	% v x y
+	translate	% v
+	90 rotate	% v
+	0 0 3 -1 roll	% -1 0 v
+} bind def
+
+% Drawing procedures		x y v draw_XXX
+
+/draw_tile {		% x y v fontname
+    findfont setfont
+    tilestr 0 3 -1 roll put
+    moveto
+    tilestr show
+} bind def
+
+/draw_NL	{	% Vertical line
+    3 1 roll 1 sub 3 -1 roll
+    /OrtLineTile draw_tile
+} bind def
+
+/draw_WL	{	% Horizontal line
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NL
+	setmatrix
+} bind def
+
+/draw_NWL	{	% North-West diagonal line
+    3 1 roll 1 sub 3 -1 roll
+    /DiaLineTile draw_tile
+} bind def
+
+/draw_NEL	{	% North-East diagonal line
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NWL
+	setmatrix
+} bind def
+
+/draw_WS	{	% West contour side
+    3 1 roll 1 sub 3 -1 roll
+    /OrtContourTile draw_tile
+} bind def
+
+/draw_NS	{	% North contour side
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_WS
+	setmatrix
+} bind def
+
+/draw_ES	{	% East contour side
+    3 1 roll 1 sub 3 -1 roll
+    [0 0 0 0 0 0] currentmatrix	% saves matrix
+    4 1 roll
+    rotate_SE
+    draw_WS
+    setmatrix
+} bind def
+
+/draw_SS	{	% South contour side
+    3 1 roll 1 sub 3 -1 roll
+    [0 0 0 0 0 0] currentmatrix	% saves matrix
+    4 1 roll
+    rotate_SW
+    draw_WS
+    setmatrix
+} bind def
+
+/draw_SWS	{	% South-West side
+    3 1 roll 1 sub 3 -1 roll
+    /DiaContourTile draw_tile
+} bind def
+
+/draw_NWS	{	% North-West side
+    3 1 roll 1 sub 3 -1 roll
+    [0 0 0 0 0 0] currentmatrix	% saves matrix
+    4 1 roll
+    rotate_NE
+    draw_SWS
+    setmatrix
+} bind def
+
+/draw_NES	{	% North-East side
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NWS
+	setmatrix	% restores matrix
+} bind def
+
+/draw_SES	{	% South-East side
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SE
+	draw_NWS
+	setmatrix	% restores matrix	
+} bind def
+
+/draw_WC	{	% West corner
+    3 1 roll 1 sub 3 -1 roll
+    /DiaCornerTile draw_tile
+} bind def
+
+/draw_NC	{	% North corner
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_WC
+	setmatrix	% restores matrix
+} bind def
+
+/draw_EC	{	% East corner
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SE
+	draw_WC
+	setmatrix	% restores matrix	
+} bind def
+
+/draw_SC	{	% West corner
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SW
+	draw_WC
+	setmatrix	% restores matrix
+} bind def
+
+/draw_NWC	{	% North-West corner
+    3 1 roll 1 sub 3 -1 roll
+    /OrtCornerTile draw_tile
+} bind def
+
+/draw_NEC	{	% North-East corner
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_NE
+	draw_NWC
+	setmatrix	% restores matrix
+} bind def
+
+/draw_SEC	{	% South-East corner
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SE
+	draw_NWC
+	setmatrix	% restores matrix	
+} bind def
+
+/draw_SWC	{	% South-West corner
+    3 1 roll 1 sub 3 -1 roll
+	[0 0 0 0 0 0] currentmatrix	% saves matrix
+	4 1 roll
+	rotate_SW
+	draw_NWC
+	setmatrix	% restores matrix
+} bind def
+
+% Drawing tiles reading their numbers and values from the file
+% <tile number><tile value><tile number><tile value>...
+% <FF><hi><lo> - horizontal space
+% <FF><FF><hi><lo> - vertical space
+% <FF><FF><FF> - end
+
+/dwt_read	{	% m f x y
+	3 -1 roll	% m x y f
+	dup	% m x y f f
+	read	% m x y f n true
+	{}	% if true do nothing	
+	{
+		cleartomark	% free data
+		(Error reading tiles information\n) print
+		quit
+	} ifelse	% m x y f n
+	exch 4 1 roll	% m f x y n 
+} bind def
+
+/stepx	{	% x y
+	exch 1 add exch	% x+1 y
+} bind def
+
+/drawtiles	{	% drawtiles
+	mark	% f m
+	exch	% m f
+	0 0	% m f x y
+	0	% m f x y 0
+	{	% loop
+		0 ne { (Unknown tile.Exit.\n) print cleartomark quit } if	% m f x y
+		dwt_read	% m f x y n 
+		dup		% m f x y n n
+		255 eq	% If it is 255
+		{	% m f x y n
+			pop		% m f x y
+			dwt_read	% m f x y n
+			dup		% m f x y n n
+			255 eq	% If it is 255
+			{	% m f x y n
+				pop		% m f x y
+				dwt_read	% m f x y n
+				dup		% m f x y n n
+				255 eq	% If it is 255
+				{	% then
+					cleartomark	% free data
+					exit		% exit
+				}
+				{	% m f x y n
+					8 bitshift	% m f x y n8
+					4 1 roll	% m n8 f x y
+					dwt_read	% m n8 f x y n
+					5 -1 roll	% m f x y n n8
+					or		% m f x y n8n
+					sub		% m f x y-n8n 
+					exch pop -1 exch % m f 0 y-n8n
+					0		% m f -1 y-n8n 0
+				} ifelse
+			}
+			{	% m f x y n
+				8 bitshift	% m f x y n8
+				4 1 roll	% m n8 f x y
+				dwt_read	% m n8 f x y n
+				5 -1 roll	% m f x y n n8
+				or		% m f x y n8n
+				3 -1 roll	% m f y n8n x
+				1 sub		% m f y n8n x-1
+				add exch	% m f x+n8n-1 y
+				0		% m f x+n8n-1 y 0
+			} ifelse
+		} if	% m f x y n
+		4 1 roll	% m n f x y
+		2 copy		% m n f x y x y
+		6 2 roll	% m x y n f x y
+		4 -1 roll	% m x y f x y n
+		dup TILE_EMPTY eq { pop pop pop 0 } if	% empty tile
+		dup TILE_NL eq { pop dwt_read draw_NL 0 } if	% Vertical line
+		dup TILE_WL eq { pop dwt_read draw_WL 0 } if	% Horizontal line
+		dup TILE_NWL eq { pop dwt_read draw_NWL 0 } if 	% North-West diagonal line
+		dup TILE_NEL eq { pop dwt_read draw_NEL 0 } if	% North-East diagonal line
+		dup TILE_WS eq { pop dwt_read draw_WS 0 } if	% West contour side
+		dup TILE_NS eq { pop dwt_read draw_NS 0 } if	% North contour side
+		dup TILE_ES eq { pop dwt_read draw_ES 0 } if	% East contour side
+		dup TILE_SS eq { pop dwt_read draw_SS 0 } if	% South contour side
+		dup TILE_NES eq { pop dwt_read draw_NES 0 } if	% North-East contour side
+		dup TILE_SES eq { pop dwt_read draw_SES 0 } if	% South-East contour side
+		dup TILE_SWS eq { pop dwt_read draw_SWS 0 } if	% South-West contour side
+		dup TILE_NWS eq { pop dwt_read draw_NWS 0 } if	% North-West contour side
+		dup TILE_WC eq { pop dwt_read draw_WC 0 } if	% West corner
+		dup TILE_NC eq { pop dwt_read draw_NC 0 } if	% North corner
+		dup TILE_EC eq { pop dwt_read draw_EC 0 } if	% East corner
+		dup TILE_SC eq { pop dwt_read draw_SC 0 } if	% South couner
+		dup TILE_NWC eq { pop dwt_read draw_NWC 0 } if	% North-West couner
+		dup TILE_NEC eq { pop dwt_read draw_NEC 0 } if	% North-East corner
+		dup TILE_SEC eq { pop dwt_read draw_SEC 0 } if	% South-East corner
+		dup TILE_SWC eq { pop dwt_read draw_SWC 0 } if	% South-West corner
+		% m x y f 0 | m x y f x y n
+		dup 0 eq
+			{ pop 3 1 roll stepx 0 }	% m f x+1 y 0
+			{ pop pop pop 3 1 roll 1 }	% m f x   y 1
+			ifelse
+	} loop	% loop end
+} bind def
+

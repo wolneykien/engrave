@@ -1,0 +1,133 @@
+%
+%  engrave --- preparation of image files for adaptive screening
+%              in a conventional RIP (Raster Image Processor).
+%
+%  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+%
+%  This program is free software: you can redistribute it and/or
+%  modify it under the terms of the GNU Affero General Public License
+%  as published by the Free Software Foundation, either version 3 of
+%  the License, or (at your option) any later version.
+%
+%  This program is distributed in the hope that it will be useful,
+%  but WITHOUT ANY WARRANTY; without even the implied warranty of
+%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%  GNU Affero General Public License for more details.
+%
+%  You should have received a copy of the GNU Affero General Public
+%  License along with this program.  If not, see
+%  <http://www.gnu.org/licenses/>.
+%
+%  Contact information:
+%
+%  The High Definition Screening project:
+%    <https://github.com/wolneykien/engrave/>.
+%
+%  Yuri Kuznetsov <yurivk@mail.ru).
+%
+%  Paul Wolneykien <manowar@altlinux.org).
+%
+%  The Graphic Arts Department of the
+%  North-West Institute of Printing of the
+%  Saint-Petersburg State University of Technology and Design
+%
+%  191180 Saint-Petersburg Jambula lane 13.
+%
+
+
+% This procedure builds a bitmap datasource from the
+% table-specified weight-function and a signal value.
+
+% Input: size weigt-string result-bitmap-string value.
+% Output: result-bit-string.
+/cellmask {
+    /bytecount 0 def		% Set byte counter to 0.
+    /bitcount 7 def		% Set bit counter to 7.
+    /signal exch def		% Store signal value under /signal.
+    /cellbits exch def		% Store result string under /cellbits.
+    /cellbyte 0 def		% Set current byte vaue to 0.
+    exch /cellsize exch def 	% Store the cell size.
+    /rowpos 0 def		% Set row pointer to 0.
+    % For all of the weight values:
+    {
+	% if weight <= signal
+	signal le
+	{
+	    % calculate the bitcount power of 2,
+	    1 1 1 bitcount {pop 2 mul} for
+	    % set bitcount-th bit of the result;
+	    cellbyte or /cellbyte exch def
+	} if
+	% decrement the bitcount;
+	bitcount 1 sub
+	% increment rowpos
+	/rowpos rowpos 1 add def
+	% if copy of bitcount < 0 or rowpos = cellsize
+	dup 0 lt rowpos cellsize eq or {
+	    % put current byte to the result,
+	    cellbits bytecount cellbyte put
+	    % increment and store the byte counter,
+	    /bytecount bytecount 1 add def
+	    % reset current byte,
+	    /cellbyte 0 def
+	    % reset the bit counter;
+	    pop 7
+	    % reset the rowpos
+	    /rowpos 0 def
+	} if
+	% store the bit counter.
+	/bitcount exch def
+    } forall
+    % If bitcount < 7 put current byte to the result.
+    bitcount 7 lt {
+	cellbits bytecount cellbyte put
+    } if
+    % Push result on the operand stack.
+    cellbits
+} bind def
+
+% This procedure paints a halftone cell with current color.
+
+% Input: size weight-function value.
+% Output: none.
+
+/fillcell {
+    /cellsize 4 -1 roll def
+    cellsize 3 1 roll
+    cellsize 8.0 div ceiling cvi cellsize mul string exch
+    cellmask
+    cellsize cellsize true [ cellsize 0 0 cellsize neg 0 cellsize ]
+    5 -1 roll imagemask
+    fill
+} bind def
+
+% Defines a halftone cell font dicitonary
+
+% Input: size weight-function.
+% Output: font dictionary.
+
+/cellfontdic {
+    5 dict begin
+	/cellweights exch def
+	/cellsize exch def
+	/FontType 3 def			% Required elements of font.
+	/FontMatrix [1 0 0 1 0 0] def
+	/FontBBox [0 0 1 1] def
+	/Encoding 256 array def		% Trivial encoding vector.
+	    0 1 255 {
+		% Places character codes as names into the
+		% Encoding vector.
+		Encoding exch dup 3 string cvs cvn put
+	    } for
+	/BuildChar {
+	    exch begin
+	    1 0
+	    0 0 1 1
+	    setcachedevice
+	    cellsize cellweights 3 -1 roll
+	    end
+	    fillcell
+	} bind def
+	currentdict	% Push cell font dic onto the operand stack.
+    end
+} bind def

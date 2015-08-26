@@ -33,7 +33,7 @@ AC_TYPE_SIZE_T
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
 # Checks for library functions.
-AC_FUNC_MALLOC
+# AC_FUNC_MALLOC # Don't use with MinGW
 AC_FUNC_STAT
 AC_FUNC_STRTOD
 AC_CHECK_FUNCS([atexit memchr memset rint strtol strtoul])

@@ -210,8 +210,11 @@ FILE *open_tmp_file(const char *fsuf, int color_idx, char *filename) {
 	char full_outname[MAXLINE];
 	FILE *file;
 	
-	if (!pid)
-		pid = getppid();
+	if ( !pid ) {
+          fprintf( stderr, "%s: Can't create temp. file: parent PID isn't set\n",
+                   program_name );
+          return NULL;
+        }
 	
 	/* Получить полное имя файла по номеру процесса, номера фильтра и
 	 * номеру цветового канала.

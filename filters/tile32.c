@@ -44,6 +44,8 @@
 
 #include <stdio.h>
 #include <sys/types.h>
+#include <string.h>
+
 #include "system.h"
 #include "filter.h"
 #include "tile32f.h"
@@ -438,26 +440,26 @@ set_paramenetrs()
 	}
 
 	if (passthrough_str != NULL) {
-	  if (index(passthrough_str, 'C') != NULL) {
+	  if (strchr(passthrough_str, 'C') != NULL) {
 	    passthrough[0] = 1;
 	  }
-	  if (index(passthrough_str, 'M') != NULL) {
+	  if (strchr(passthrough_str, 'M') != NULL) {
 	    passthrough[1] = 1;
 	  }
-	  if (index(passthrough_str, 'Y') != NULL) {
+	  if (strchr(passthrough_str, 'Y') != NULL) {
 	    passthrough[2] = 1;
 	  }
-	  if (index(passthrough_str, 'K') != NULL) {
+	  if (strchr(passthrough_str, 'K') != NULL) {
 	    passthrough[3] = 1;
 	  }
 	}
 	if (select_mask_str != NULL) {
-	  if (index(select_mask_str, 'B') != NULL) {
+	  if (strchr(select_mask_str, 'B') != NULL) {
 	    select_mask[0] = 1;
 	  } else {
 	    select_mask[0] = 0;
 	  }
-	  if (index(select_mask_str, 'W') != NULL) {
+	  if (strchr(select_mask_str, 'W') != NULL) {
 	    select_mask[1] = 1;
 	  } else {
 	    select_mask[1] = 0;

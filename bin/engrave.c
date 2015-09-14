@@ -44,6 +44,9 @@
 
 #include <stdio.h>
 #include <sys/types.h>
+#include <string.h>
+#include <time.h>
+
 #include "system.h"
 #include <getopt.h>
 #include <tiff.h>
@@ -466,16 +469,16 @@ decode_switches (int argc, char **argv)
 			miniswhite = 1;
 		}
 		if (optarg != NULL) {
-		  if (index(optarg, 'C') != NULL) {
+		  if (strchr(optarg, 'C') != NULL) {
 		    want_c = 1;
 		  }
-		  if (index(optarg, 'M') != NULL) {
+		  if (strchr(optarg, 'M') != NULL) {
 		    want_m = 1;
 		  }
-		  if (index(optarg, 'Y') != NULL) {
+		  if (strchr(optarg, 'Y') != NULL) {
 		    want_y = 1;
 		  }
-		  if (index(optarg, 'K') != NULL) {
+		  if (strchr(optarg, 'K') != NULL) {
 		    want_k = 1;
 		  }
 		}
@@ -584,7 +587,7 @@ set_suffix(char *destname, const char *filename, const char *suffix)
 
   char *dot;
 
-  dot = rindex(filename, '.'); 
+  dot = strrchr(filename, '.'); 
   if (dot != NULL)
   	dot[0] = '\0';
   snprintf(destname, MAXLINE, "%s.%s", filename, suffix);
@@ -600,7 +603,7 @@ filter_basename(char *filter_name, const char *a_filter)
 {
 	char *filter_tail;
 
-	filter_tail = index(a_filter, ' ');
+	filter_tail = strchr(a_filter, ' ');
 	if (filter_tail != NULL) {
 		*filter_tail = '\0';
 	}
@@ -982,28 +985,29 @@ parse_filters(char *f_cmd, int *filter_count, pid_t pid)
   f_cmd[0] = '\0';
 
   *filter_count = 0;
-  do {
-  	/* Выделение части строки до символа перевода. */
-  	a_filter = strsep(&next_filter, "\n");
-	/* Если коммандная строка уже содержит некоторые комманды,
-	 * в начало коммандной строки добавляется символ коммуникации. */
-	if (strlen(f_cmd) > 0)
-		strcat(f_cmd, " | ");
-	/* Сборка коммандной строки. */
-	strcpy(f_path, filterdir);
-	pathcat(f_path, a_filter);
-	strcat(f_cmd, f_path);
-	strcat(f_cmd, f_args);
-	/* Добавление ключа с номером фильтра. */
-	snprintf(i_arg, sizeof(i_arg), " -i %u", (*filter_count)++);
-	strcat(f_cmd, i_arg);
-	/* Восстановление символа перевода в конце строки. */
-	if (next_filter != NULL) {
-		*(next_filter - 1) = '\n';
-	}
+  
+  /* Выделение части строки до символа перевода. */
+  char *saveptr = NULL;
+  a_filter = strtok_r(next_filter, "\n", &saveptr);
+  while (a_filter != NULL) {
+    /* Если коммандная строка уже содержит некоторые комманды,
+     * в начало коммандной строки добавляется символ коммуникации. */
+    if (strlen(f_cmd) > 0)
+      strcat(f_cmd, " | ");
+    
+    /* Сборка коммандной строки. */
+    strcpy(f_path, filterdir);
+    pathcat(f_path, a_filter);
+    strcat(f_cmd, f_path);
+    strcat(f_cmd, f_args);
+    
+    /* Добавление ключа с номером фильтра. */
+    snprintf(i_arg, sizeof(i_arg), " -i %u", (*filter_count)++);
+    strcat(f_cmd, i_arg);
 
-  /* Повторение операций со следующим фильтром. */
-  } while (next_filter != NULL && *next_filter != '\0');
+    /* Повторение операций со следующим фильтром. */
+    a_filter = strtok_r(NULL, "\n", &saveptr);
+  }
   strcat(f_cmd, " > /dev/null");
 }
 
@@ -1027,7 +1031,7 @@ ps_header(const char *file_name, FILE *output_file)
   /* Определение текущего времени. */
   cr_time = time(NULL);
   /* Преобразование полученного знечения времени. */
-  ctime_r(&cr_time, cr_time_str);
+  strftime(cr_time_str, sizeof(cr_time_str), "%Y-%m-%d %H:%M:%S", localtime(&cr_time));
 
   /* Вывод заголовка PostScript программы для построения
    * конечного изображения. */
@@ -1056,22 +1060,21 @@ ps_header(const char *file_name, FILE *output_file)
   
   /* Начальная установка указателя. */
   next_filter = filter;
+  
+  /* Выделение части строки до символа перевода. */
+  char *saveptr = NULL;
+  a_filter = strtok_r(next_filter, "\n", &saveptr);
+  while (a_filter != NULL) {
+    filter_basename(filter_name, a_filter);
+    strcpy(ps_path, psdir);
+    pathcat(ps_path, filter_name);
 
-  do {
-	/* Выделение части строки до символа перевода. */
-  	a_filter = strsep(&next_filter, "\n");
-	filter_basename(filter_name, a_filter);
-	strcpy(ps_path, psdir);
-	pathcat(ps_path, filter_name);
-	/* Копирование библиотечного PostScript файла в выходной поток. */
-	dump_file(output_file, strcat(ps_path, ".ps"), 0);
-  	/* Восстановление символа перевода в конце строки. */
-	if (next_filter != NULL) {
-		*(next_filter - 1) = '\n';
-	}
+    /* Копирование библиотечного PostScript файла в выходной поток. */
+    dump_file(output_file, strcat(ps_path, ".ps"), 0);
 
-  /* Повторение операций со следующим фильтром. */
-  } while (next_filter != NULL && *next_filter != '\0');
+    /* Повторение операций со следующим фильтром. */
+    a_filter = strtok_r(NULL, "\n", &saveptr);
+  }
 
   /* Завершение заголовка PostScript программы. */
   fprintf(output_file,	"%%%%EndProlog\n"

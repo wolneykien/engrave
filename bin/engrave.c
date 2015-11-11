@@ -244,9 +244,9 @@ Options:\n\
                                 values\n\
   -I, --intensity		intput and output data is INTENSITY\n\
                                 values\n\
-  -F FPATH --filter-path=FPATH	path to filters, default is %s\n\
+  -F FPATH --filter-path=FPATH	path to filters, default is '%s'\n\
   -P PSPATH --ps-path=PSPATH	path to PostScript library files,\n\
-                                default is %s\n\
+                                default is '%s'\n\
   -o [NAME], --output[=NAME]	write output to file [NAME] (default\n\
                                 <NAME>.<SUF>)\n\
   -O SUF, --output-suffix=SUF	write output file to <NAME>.SUF \n\

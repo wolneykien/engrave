@@ -88,18 +88,30 @@ struct cleanup_qs *queue = NULL;
 /* Присоединение имён файлов через '/' для образование пути. */
 
 void pathcat(char *dest, const char *src) {
+  if (strlen(dest) > 0 ) {
 #ifndef __MINGW32__
 	if (dest[strlen(dest)-1] != '/' && src[0] != '/')
-		strcat(dest, "/");
+      strcat(dest, "/");
 	if(dest[strlen(dest)-1] == '/' && src[0] == '/')
-		dest[strlen(dest)-1] = '\0';
+      dest[strlen(dest)-1] = '\0';
 #else
 	if (dest[strlen(dest)-1] != '\\' && src[0] != '\\')
-      strcat(dest, "/");
+      strcat(dest, "\\");
 	if(dest[strlen(dest)-1] == '\\' && src[0] == '\\')
       dest[strlen(dest)-1] = '\0';
 #endif
-	strcat(dest, src);
+  }
+
+  if (strlen(dest) == 0) {
+#ifndef __MINGW32__
+    if (strcmp(src, "/") == 0)
+#else
+    if (strcmp(src, "\\") == 0)
+#endif
+      return;
+  }
+  
+  strcat(dest, src);
 }
 
 /* Удаление точки и последующих символов в конце файла. */
@@ -199,7 +211,11 @@ char *get_tmp_file_name(char *str, const char *fsuf, pid_t pid, int fidx, int co
 
 	strcpy(outpath, P_tmpdir);
 	snprintf(outname, sizeof(outname), "%u.%u.%s", pid, fidx, fsuf);
+#ifndef __MINGW32__
 	pathcat(outpath, "/");
+#else
+	pathcat(outpath, "\\");
+#endif
 	sprintf(str, "%s%s.%s", outpath, outname, get_cmyk_color_suf(color_idx));
 
 	return str;

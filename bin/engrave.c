@@ -1049,7 +1049,11 @@ parse_filters(char *f_cmd, int *filter_count, pid_t pid)
     /* Повторение операций со следующим фильтром. */
     a_filter = strtok_r(NULL, "\n", &saveptr);
   }
+
+  /* TODO: Решить вопрос с "лишними" данными по-другому. */
+#ifndef __MINGW32__
   strcat(f_cmd, " > /dev/null");
+#endif
 }
 
 /* Функция для вывода заголовка PostScript-программы. */

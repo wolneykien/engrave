@@ -1,6 +1,10 @@
 bin_PROGRAMS = engrave
 
-AM_CFLAGS = -DFILTERS=\"$(pkglibdir)\" -DPSLIB=\"$(pkgdatadir)\" -I ../share -I ../filters
+if WINDOWS
+  AM_CFLAGS = -I ../share -I ../filters
+else
+  AM_CFLAGS = -DFILTERS=\"$(pkglibdir)\" -DPSLIB=\"$(pkgdatadir)\" -I ../share -I ../filters
+endif
 
 engrave_SOURCES = engrave.c aclocal.m4
 engrave_LDADD = -ltiff ../share/libmisc.a

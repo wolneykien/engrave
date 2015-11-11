@@ -259,7 +259,7 @@ Filter chain:\n\
   -f FILTER [options], \n\
   --filter=FILTER [options]     process image through FILTER [filter\n\
                                 options].\n\
-"), FILTERS, PSLIB);
+"), filterdir, psdir);
   exit (status);
 }
 
@@ -345,9 +345,6 @@ decode_switches (int argc, char **argv)
   write_to_file = 1;
   output_name[0] = '\0';
   want_preview = 0;
-  /* Для задания директорий по умолчанию используются значения констант. */
-  snprintf(filterdir, sizeof(filterdir), FILTERS);
-  snprintf(psdir, sizeof(filterdir), PSLIB);
 
   /* Перебор параметров коммандной строки с помощью функции getopt_long. */
   while ((c = getopt_long (argc, argv, 
@@ -552,6 +549,50 @@ main (int argc, char **argv)
   /* Получение имени программы. */
   program_name = argv[0];
 
+  char pdirbuf[1024];
+  snprintf(pdirbuf, sizeof(pdirbuf), "%s", argv[0]);
+  dirname(pdirbuf);
+
+  if (strcmp(pdirbuf, argv[0]) == 0) {
+    /* Запуск из текущей директории (под Win)? */
+    pdirbuf[0] = '\0';
+  }
+
+  /* Для задания директорий по умолчанию используются значения констант.
+     Если путь относительный, то добавляется путь к программе. */
+
+#ifdef FILTERS
+#  ifndef __MINGW32__
+  if (strncmp(FILTERS, "/", 1) == 0)
+    snprintf(filterdir, sizeof(filterdir), "%s", FILTERS);
+  else
+    snprintf(filterdir, sizeof(filterdir), "%s/%s", pdirbuf, FILTERS);
+#  else
+  if (strlen(pdirbuf) > 0)
+    snprintf(filterdir, sizeof(filterdir), "%s\\%s", pdirbuf, FILTERS);
+  else
+    snprintf(filterdir, sizeof(filterdir), "%s", FILTERS);
+#  endif
+#else
+  snprintf(filterdir, sizeof(filterdir), "%s", pdirbuf);
+#endif
+
+#ifdef PSLIB
+#  ifndef __MINGW32__
+  if (strncmp(PSLIB, "/", 1) == 0)
+    snprintf(psdir, sizeof(psdir), "%s", PSLIB);
+  else
+    snprintf(psdir, sizeof(psdir), "%s/%s", pdirbuf, PSLIB);
+#  else
+  if (strlen(pdirbuf) > 0)
+    snprintf(filterdir, sizeof(filterdir), "%s\\%s", pdirbuf, PSLIB);
+  else
+    snprintf(filterdir, sizeof(filterdir), "%s", PSLIB);
+#  endif
+#else
+  snprintf(psdir, sizeof(psdir), "%s", pdirbuf);
+#endif
+  
   /* Разбор аргументов коммандной строки. */
   opt_r = decode_switches (argc, argv);
 

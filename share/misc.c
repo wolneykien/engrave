@@ -88,10 +88,17 @@ struct cleanup_qs *queue = NULL;
 /* Присоединение имён файлов через '/' для образование пути. */
 
 void pathcat(char *dest, const char *src) {
+#ifndef __MINGW32__
 	if (dest[strlen(dest)-1] != '/' && src[0] != '/')
 		strcat(dest, "/");
 	if(dest[strlen(dest)-1] == '/' && src[0] == '/')
 		dest[strlen(dest)-1] = '\0';
+#else
+	if (dest[strlen(dest)-1] != '\\' && src[0] != '\\')
+      strcat(dest, "/");
+	if(dest[strlen(dest)-1] == '\\' && src[0] == '\\')
+      dest[strlen(dest)-1] = '\0';
+#endif
 	strcat(dest, src);
 }
 

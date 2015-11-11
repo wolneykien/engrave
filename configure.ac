@@ -7,6 +7,15 @@ AM_INIT_AUTOMAKE([engrave], [0.6.1])
 AC_CONFIG_SRCDIR([share/misc.h])
 AC_CONFIG_HEADER([config.h])
 
+AC_CANONICAL_HOST
+win=
+case "$host_os" in
+     mingw*)
+        win=yes
+        ;;
+esac
+AM_CONDITIONAL([WINDOWS],[test -n "$win"])
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL

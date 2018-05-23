@@ -325,7 +325,7 @@ usage_params(FILE *out)
 {
 
   fprintf(out, _("\
-  --half	       process only the left half of an image\n\
+  --half	           process only the left half of an image\n\
   --hist=FILE	       write tile histogram data to FILE\n\
   --ignore-outtest     do not test stroke to cross the centra area\n\
   --minarea=VALUE      minimal line stroke area (defines thickness),\n\
@@ -437,7 +437,7 @@ main (int argc, char **argv)
   FILE *histf = NULL;
 
   /* Набор функций кодировщика тайлов. */
-  struct filter_writer *filter_writer_p = &ascii_filter_writer;
+  struct filter_writer *filter_writer_p = &ascii85_filter_writer;
 
   /* Набор указателей на файлы для записи позитивных штриховых изображений. */
   FILE *pos_outfile[] = {

@@ -86,32 +86,32 @@ struct filter_writer {
 	 * изображения (маски). Возвращает указатель на контекст,
 	 * который затем используется в других функциях.
 	 */
-	(void *) (*open_tilemap)      ( FILE *outfile, int mask );
+	void * (*open_tilemap)      ( FILE *outfile, int mask );
 	
 	/**
 	 * Инициализирует кодировщик для записи тонового изображения
 	 * в файл #outfile. Возвращает указатель на контекст,
 	 * который затем используется в других функциях.
 	 */
-	(void *) (*open_tonemap)      ( FILE *outfile );
+	void * (*open_tonemap)      ( FILE *outfile );
 
 	/**
 	 * Кодирует #zl пустых строк.
 	 */
-	(void)   (*write_empty_lines) ( void *ctx, unsigned int zl );
+	void   (*write_empty_lines) ( void *ctx, unsigned int zl );
 
 	/**
 	 * Кодирует #z пробелов.
 	 */
-	(void)   (*write_spaces)      ( void *ctx, unsigned int z );
+	void   (*write_spaces)      ( void *ctx, unsigned int z );
 
 	/**
 	 * Кодирует тайл с номером #tile_index и относительной
 	 * площадью #tile_area.
 	 */
-	(void)   (*write_tile)        ( void *ctx,
-									unsigned char tile_index,
-									unsigned char tile_area );
+	void   (*write_tile)        ( void *ctx,
+								  unsigned char tile_index,
+								  unsigned char tile_area );
 
 	/**
 	 * Выводит строку тонового изображения. Строка из #count отсчётов
@@ -119,13 +119,13 @@ struct filter_writer {
 	 * сброса #flush, то содержимое буфера коировщика сбрасывается
 	 * в выходной поток.
 	 */
-	(void)  (*write_toneline)     ( void *ctx, char *buf, size_t ss,
-									size_t count, int flush );
+	void  (*write_toneline)     ( void *ctx, char *buf, size_t ss,
+								  size_t count, int flush );
 
 	/**
 	 * Закрывает кодировщик и освобождает ресурсы.
 	 */
-	(void)   (*close)             ( void *ctx );
+	void   (*close)             ( void *ctx );
 };
 
 char *get_filter_option(int i, char *dst_fopt, char *fopts);

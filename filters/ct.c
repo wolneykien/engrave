@@ -96,7 +96,7 @@ main (int argc, char **argv)
   char filenames[4][MAXLINE] = { "", "", "", "" };
 
   /* Набор функций кодировщика тайлов. */
-  struct filter_writer *filter_writer_p = &ascii_filter_writer;
+  struct filter_writer *filter_writer_p = &ascii85_filter_writer;
   
   /* Набор из 4 структур для хранения информации при кодировании цифровых
    * изображений в символьное представление.
@@ -192,8 +192,6 @@ main (int argc, char **argv)
 		/* Выход с признаком ошибки, если файл не был открыт. */
 		exit(EXIT_FAILURE);
 	 }
-	 /* Запись заголовка. */
-	 write_header(outfile[c]);
 	 /* Создание и инициализация информации для кодирования. */
 	 filter_writer_ctx[c] = filter_writer_p->open_tonemap( outfile[c] );
 	 if ( filter_writer_ctx[c] == NULL ) {
@@ -216,7 +214,7 @@ main (int argc, char **argv)
 	  rd = fread(buf, ss, width, stdin);
 	  /* Контроль количества прочитанных отсчётов. */
 	  if (rd < width) {
-		  fprintf(stderr, "%s: Line %i. Image stream suddenly closed\n", y, program_name);
+		  fprintf(stderr, "%s: Line %i. Image stream suddenly closed\n", program_name, y);
 		  /* Выход с признаком ошибки, если было прочитано меньше
 		   * отсчётов, чем ширина изображения.
 		   */

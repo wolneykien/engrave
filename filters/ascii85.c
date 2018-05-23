@@ -39,13 +39,19 @@
 /* Библиотека для записи бинарных данных в виде текста, в формате
 ASCII-85. */
 
+#include <stdio.h>
+#include <sys/types.h>
+#include "system.h"
 #include "ascii85.h"
 
-void * ascii85_open( FILE *outfile );
+void * ascii85_open_tilemap( FILE *outfile, int mask );
+void * ascii85_open_tonemap( FILE *outfile );
 void ascii85_write_empty_lines( void *ctx, unsigned int zl );
 void ascii85_write_spaces( void *ctx, unsigned int z );
 void ascii85_write_tile( void *ctx, unsigned char tile_index,
 						 unsigned char tile_area );
+void ascii85_write_toneline( void *ctx, char *buf, size_t ss,
+								 size_t count, int flush );
 void ascii85_close( void *ctx );
 
 /**
@@ -224,6 +230,8 @@ ascii85_write_tile( void *ctx, unsigned char tile_index,
 						 tile_area );
 }
 
+static void ascii85_flush( struct ascii85 *a );
+
 /**
  * Выводит строку тонового изображения в виде строки символов ASCII base 85.
  * Структура #a определяет параметры кодирования и выходной поток. Строка из
@@ -267,7 +275,6 @@ ascii85_write_toneline( void *ctx, char *buf, size_t ss,
 }
 
 static void destroy_ascii85( struct ascii85 *ascii85_p );
-static void ascii85_flush( struct ascii85 *a );
 static void write_footer( FILE *stream );
 
 /**
@@ -277,10 +284,10 @@ static void
 _ascii85_close( struct ascii85 *ascii85_p )
 {
 	/* Сброс буферов кодировщиков. */
-	ascii85_encode( ascii85_p[c], 0xFF );
-	ascii85_encode( ascii85_p[c], 0xFF );
-	ascii85_encode( ascii85_p[c], 0xFF );
-	ascii85_flush( ascii85_p[c] );
+	ascii85_encode( ascii85_p, 0xFF );
+	ascii85_encode( ascii85_p, 0xFF );
+	ascii85_encode( ascii85_p, 0xFF );
+	ascii85_flush( ascii85_p );
 
 	/* Вывод завершающей части. */
 	write_footer( ascii85_p->file );
@@ -414,7 +421,8 @@ ascii85_flush(struct ascii85 *a) {
 		}
 		tuple = ascii85_tuple(a->tuple, a->buffer);
 		if (a->file != NULL) {
-		  fprintf(a->file, (unsigned char *) (*tuple == 'z' ? "!!!!" : tuple));
+			fputs( (unsigned char *) (*tuple == 'z' ? "!!!!" : tuple),
+				   a->file );
 		}
 	}
 	
@@ -473,8 +481,8 @@ write_tonemap_header( FILE *stream )
 			">>\n"
 			"%%%%BeginData\n"
 			"image\n",
-			(float) width/hres*72,
-			(float) height/vres*72,
+			(float) width/hres * 72,
+			(float) height/vres * 72,
 			width, height,
 			miniswhite ? "[0 1]" : "[1 0]",
 			width, height, height);

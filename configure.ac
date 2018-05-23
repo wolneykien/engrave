@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.59])
-AC_INIT([engrave], [0.6.1], [manowar@altlinux.org])
-AM_INIT_AUTOMAKE([engrave], [0.6.1])
+AC_INIT([engrave], [0.6.2], [manowar@altlinux.org])
+AM_INIT_AUTOMAKE([engrave], [0.6.2])
 AC_CONFIG_SRCDIR([share/misc.h])
 AC_CONFIG_HEADER([config.h])
 

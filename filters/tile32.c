@@ -2,7 +2,7 @@
  *  engrave --- preparation of image files for adaptive screening
  *              in a conventional RIP (Raster Image Processor).
  *
- *  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+ *  Copyright (C) 2018 Yuri V. Kouznetsov, Paul A. Wolneykien.
  *
  *  This program is free software: you can redistribute it and/or
  *  modify it under the terms of the GNU Affero General Public License
@@ -48,6 +48,7 @@
 
 #include "system.h"
 #include "filter.h"
+#include "ascii85.h"
 #include "tile32f.h"
 #include "misc.h"
 
@@ -119,57 +120,27 @@ char **option_vars[] =
 	&select_mask_str
 };
 
-/* Определение вспомогательных функций. */
 
-/* Вывод заголовка PostScript-программы в указанный поток, с возможностью
- * указания признака изображения маски.
- */
-void write_header(FILE *stream, int mask) {
-  if (stream != NULL) {
-	fprintf(stream, "%% Filter: tile32 filter from "PACKAGE" "VERSION"\n"
-			"%%%%LanguageLevel 2\n"
-			"gsave\t%% Save grafics state\n"
-			"%s setcolor\n"
-			"%% Drawing %s tiles:\n"
-			"0 %f translate\n"
-			"%f %f scale\n"
-			"currentfile /ASCII85Decode filter\n"
-			"%%%%BeginData\n"
-			"drawtiles\n",
-			mask ? "0.0" : "1.0", mask ? "negative" : "positive",
-			(float) height/hres*72,
-			(float) 72/hres,
-			(float) 72/vres);
-  }
-}
-
-/* Вывод завершающей части PostScript-программы в указанный поток. */
-void write_footer(FILE *stream) {
-  if (stream != NULL) {
-	fprintf(stream, "%%%%EndData\n"
-			"grestore\t%% Restore previous graphic state\n");
-  }
-}
-
-/* Основная функция, выполнямая для адаптивного растрирования: анализ
- * изображения окном, разделение сигнала и формирование записей о штриховой
- * части изображения в виде тайлов. Строки изображения располагаются в
- * указанном наборе буферов, номера и относительные площади тайлов записываются
- * в указанный выходной буфер. Информация требуемого цветового канала
- * выделяется из отсчётов на основании указанного смещения. Строки изображения
- * состоят из отсчётов указанной длины и из указанного количества таких
- * отсчётов. Информация о тайлах (номера и площади) требует кодирования в
- * виде строки символов, для помещения в PostScript-программу. Позитивные и
- * негативные тайлы кодируются по отдельности, поскольку относятся к различным
- * частям программы. Для их кодирования используются две указанные структуры.
- * Для синхронизации счётчиков пустых участков и пустых строк между вызовами
- * функции, они хранятся в структуре по указанному адресу.
- */
-void maketiles(unsigned char *buf[], unsigned char *outbuf, \
-	       int c0, int c, size_t ss, size_t len, \
-	       struct ascii85 *pos_ascii85_p, \
-	       struct ascii85 *neg_ascii85_p, \
-	       struct maketiles_info *mi) {
+/**
+ * Основная функция, выполнямая для адаптивного растрирования.
+ *
+ * Анализ изображения окном, разделение сигнала и формирование записей
+ * о штриховой части изображения в виде тайлов. Строки изображения
+ * передаются в наборе буферов #buf, номера и относительные
+ * площади тайлов записываются в выходной буфер #outbuf. Информация
+ * для выделения цветового канала передаётся в виде #c0 + #c. Строки
+ * изображения состоят из отсчётов размера #ss и #len количества таких
+ * отсчётов. Информация о тайлах (номера и площади) кодируется
+ * кодировщиком #filter_writer_p отдельно позитивных #pos_filter_writer и
+ * негативных тайлов #neg_filter_writer. Для синхронизации счётчиков пустых
+ * участков и пустых строк между вызовами данной функции, они сохраняются
+ * в структуре #mi. */
+void maketiles(unsigned char *buf[], unsigned char *outbuf,
+			   int c0, int c, size_t ss, size_t len,
+			   struct filter_writer *filter_writer_p,
+			   void *pos_filter_writer,
+			   void *neg_filter_writer,
+			   struct maketiles_info *mi) {
 
 	/* Окно отсчётов. */
 	t_window window;
@@ -190,8 +161,8 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf, \
 	unsigned int z;
 	unsigned int zl;
 
-	/* Текущая структура для кодирования информация о тайлах. */
-	struct ascii85 *ascii85_p;
+	/* Текущий кодировщик. */
+	void *filter_writer_ctx;
 
 	/* Ширина половины изображения. */
 	size_t half_len = len/2;
@@ -273,14 +244,14 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf, \
 			/* Обработка информации о тайле производится в
 			 * зависимости от его полярности.
 			 */
-                        if (neg) {
+			if (neg) {
 				/* Регистрация номера тайла в гистограмме
 				 * масок.
 				 */
 				nhist[tile_index-1]++;
 				/* Установка значений текущих переменных
 				 * для обработки негативных тайов. */
-				ascii85_p = neg_ascii85_p;
+				filter_writer_ctx = neg_filter_writer;
 				z = mi->nz;
 				zl = mi->nzl;
 			} else {
@@ -290,7 +261,7 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf, \
 				phist[tile_index-1]++;
 				/* Установка значений текущих переменных
 				 * для обработки позитивных тайов. */
-				ascii85_p = pos_ascii85_p;
+				filter_writer_ctx = pos_filter_writer;
 				z = mi->pz;
 				zl = mi->pzl;
 			}
@@ -301,31 +272,16 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf, \
 			 * в соответствие со значениями счётчиков.
 			 */
 			if (zl) {
-				ascii85_encode(ascii85_p, 0xFF);
-				ascii85_encode(ascii85_p, 0xFF);
-				ascii85_encode(ascii85_p, (unsigned char)((zl >> 8) & 0xFF));
-				ascii85_encode(ascii85_p, (unsigned char)(zl & 0xFF));
+				filter_writer_p->write_empty_lines( filter_writer_ctx, zl );
 			}
 			if (z) {
-				/* Если тайлу предшествует более 3 пробелов, то
-				 * для экономии места используется компактная
-				 * координатная нотация. */
-				if (z > 3) {
-					ascii85_encode(ascii85_p, 0xFF);
-					ascii85_encode(ascii85_p, (unsigned char)((z >> 8) & 0xFF));
-					ascii85_encode(ascii85_p, (unsigned char)(z & 0xFF));
-				} else {
-					/* Иначе, записываются подряд три
-					 * пробела. */
-					while (z--) {
-						ascii85_encode(ascii85_p, (unsigned char) 0);
-					}
-				}
+				filter_writer_p->write_spaces( filter_writer_ctx, z );
 			}
 				
 			/* Записываются номер и площадь тайла. */
-			ascii85_encode(ascii85_p, (unsigned char)tile_index);			
-			ascii85_encode(ascii85_p, tile_area);
+			filter_writer_p->write_tile( filter_writer_ctx,
+									   (unsigned char) tile_index,
+									   tile_area );
 				
 			/* Обновление и сброс счётчиков стационарных
 			 * участков. */
@@ -343,7 +299,7 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf, \
 			 * увеличиваем счётчики пробелов. */
 			mi->nz++;
 			mi->pz++;
-                        zerotile++;
+			zerotile++;
 		}
 	}
 
@@ -480,6 +436,9 @@ main (int argc, char **argv)
    /* Файл для записи гистограммы. */
   FILE *histf = NULL;
 
+  /* Набор функций кодировщика тайлов. */
+  struct filter_writer *filter_writer_p = &ascii_filter_writer;
+
   /* Набор указателей на файлы для записи позитивных штриховых изображений. */
   FILE *pos_outfile[] = {
 	  NULL,
@@ -491,8 +450,8 @@ main (int argc, char **argv)
   /* Имена файлов для записи позитивных штриховых изображений. */
   char pos_filenames[4][MAXLINE] = { "\0", "\0", "\0", "\0" };
   
-  /* Структуры используемые при коировании информации о позитивных тайлах. */
-  struct ascii85 *pos_ascii85_p[] = {
+  /* Контексты кодировщиков позитивных тайлов. */
+  void *pos_filter_writer[] = {
 	  NULL,
 	  NULL,
 	  NULL,
@@ -510,8 +469,8 @@ main (int argc, char **argv)
   /* Имена файлов для записи маскирующих изображений. */
   char neg_filenames[4][MAXLINE] = { "\0", "\0", "\0", "\0" };
 
-  /* Структуры используемые при коировании информации о маскирующих тайлах. */
-  struct ascii85 *neg_ascii85_p[] = {
+  /* Контексты кодировщиков маскирующих тайлов. */
+  void *neg_filter_writer[] = {
 	  NULL,
 	  NULL,
 	  NULL,
@@ -568,16 +527,16 @@ main (int argc, char **argv)
 	  if (!OK)
 		  fprintf(stderr, "%s: Finished with error.\n", program_name);
 	  for (i = 0; i < 4; i++) {
-		  if (pos_ascii85_p[i] != NULL)
-			  destroy_ascii85(pos_ascii85_p[i]);
+		  if (pos_filter_writer[i] != NULL)
+			  filter_writer_p->close( pos_filter_writer[i] );
 		  if (pos_outfile[i] != NULL)
 			  fclose(pos_outfile[i]);
 		  if (!OK && pos_filenames[i][0] != '\0') {
 			  fprintf(stderr, "%s: Delete temporary file: %s\n", program_name, pos_filenames[i]);
 			  unlink(pos_filenames[i]);
 		  }
-		  if (neg_ascii85_p[i] != NULL)
-			  destroy_ascii85(neg_ascii85_p[i]);
+		  if (neg_filter_writer[i] != NULL)
+			  filter_writer_p->close( neg_filter_writer[i] );
 		  if (neg_outfile[i] != NULL)
 			  fclose(neg_outfile[i]);
 		  if (!OK && neg_filenames[i][0] != '\0') {
@@ -664,15 +623,14 @@ main (int argc, char **argv)
     if (select_mask[1]) {
       neg_outfile[c] = open_tmp_file("m", c, neg_filenames[c]);
     }
-	 /* Вывод заголовков. */
-	 write_header(pos_outfile[c], 0);
-	 write_header(neg_outfile[c], 1);
 	 
 	 /* Инициализация кодировщиков. */
-	 pos_ascii85_p[c] = new_ascii85(pos_outfile[c]);
-	 neg_ascii85_p[c] = new_ascii85(neg_outfile[c]);
-	 if (pos_ascii85_p[c] == NULL || neg_ascii85_p[c] == NULL) {
-		 fprintf(stderr, "%s: Failed to allocate an ascii85 structure.\n", program_name);
+	 pos_filter_writer[c] = filter_writer_p->open_tilemap( pos_outfile[c], 0 );
+	 neg_filter_writer[c] = filter_writer_p->open_tilemap( neg_outfile[c], 1 );
+	 if (pos_filter_writer[c] == NULL || neg_filter_writer[c] == NULL) {
+		 fprintf(stderr,
+				 "%s: Failed to initialize the tile writers.\n",
+				 program_name);
 		 /* Выход с признаком ошибки, если инициализация завершилась
 		  * ошибкой.
 		  */
@@ -766,7 +724,7 @@ main (int argc, char **argv)
 
 	  /* Последовательная обработка цветовых каналов с генерацией тайлов. */
 	  for (c = c0; c <= cN; c++) {
-		  maketiles(buf, outbuf, c0, c, ss, width, pos_ascii85_p[c], neg_ascii85_p[c], &mi[c]);
+		  maketiles(buf, outbuf, c0, c, ss, width, filter_writer_p, pos_filter_writer[c], neg_filter_writer[c], &mi[c]);
 	  }
 
 	  /* Отправка строки изображения с фоновыми значениями тона на
@@ -794,7 +752,7 @@ main (int argc, char **argv)
 	  
 	  /* Последовательная обработка цветовых каналов с генерацией тайлов. */
 	  for (c = c0; c <= cN; c++) {
-		  maketiles(buf, outbuf, c0, c, ss, width, pos_ascii85_p[c], neg_ascii85_p[c], &mi[c]);
+		  maketiles(buf, outbuf, c0, c, ss, width, filter_writer_p, pos_filter_writer[c], neg_filter_writer[c], &mi[c]);
 	  }
 	  /* Отправка строки изображения с фоновыми значениями тона на
 	   * дольнейшую обработку. */
@@ -806,18 +764,10 @@ main (int argc, char **argv)
    */
   for (c = c0; c <= cN; c++) {
 	  /* Сброс буферов. */
-	  ascii85_encode(pos_ascii85_p[c], 0xFF);
-	  ascii85_encode(pos_ascii85_p[c], 0xFF);
-	  ascii85_encode(pos_ascii85_p[c], 0xFF);
-	  ascii85_flush(pos_ascii85_p[c]);
-	  ascii85_encode(neg_ascii85_p[c], 0xFF);
-	  ascii85_encode(neg_ascii85_p[c], 0xFF);
-	  ascii85_encode(neg_ascii85_p[c], 0xFF);
-	  ascii85_flush(neg_ascii85_p[c]);
-
-	  /* Вывод завершающих частей. */
-	  write_footer(pos_outfile[c]);
-	  write_footer(neg_outfile[c]);
+	  filter_writer_p->close( pos_filter_writer[c] );
+	  pos_filter_writer[c] = NULL;
+	  filter_writer_p->close( neg_filter_writer[c] );
+	  neg_filter_writer[c] = NULL;
   }
 
   /* Производится вывод гистограммы, если было указано имя файла для записи. */

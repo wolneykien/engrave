@@ -2,7 +2,7 @@
  *  engrave --- preparation of image files for adaptive screening
  *              in a conventional RIP (Raster Image Processor).
  *
- *  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+ *  Copyright (C) 2018 Yuri V. Kouznetsov, Paul A. Wolneykien.
  *
  *  This program is free software: you can redistribute it and/or
  *  modify it under the terms of the GNU Affero General Public License
@@ -83,122 +83,6 @@ static struct option const base_long_options[] =
 	{"verbose", no_argument, NULL, 'v'},
 	{NULL, 0, NULL, 0}
 };
-
-/* Функция для инициализации структуры, используемой для хранения информации
- * о параметрах кодирования цифрового изображения в символьное представление.
- * Структура связыает процесс кодирования с указанным файлом.
- */
-struct ascii85 *new_ascii85(FILE *outfile) {
-
-	struct ascii85 *a;
-
-	a = (struct ascii85 *) malloc(sizeof(struct ascii85));
-	if (a != NULL) {
-		a->line_break = LINEWIDTH;
-		a->offset = 0;
-		a->file = outfile;
-		a->buffer[a->offset] = '\0';
-	}
-	return a;
-}
-
-/* Функция для освобождения ресурсов, занятых структурой для кодирования
- * изображений.
- */
-void destroy_ascii85(struct ascii85 *ascii85_p) {
-	if (ascii85_p != NULL) {
-		free(ascii85_p);
-	}
-}
-
-/* Функция для отображения указанного байта в кортеж символов. Память для
- * хранения кортежа выделяется перед вызовом с передачей указателя на пустой
- * котеж. Подробнее о кодировании ACSII base 85 см. PLRM v.3.
- */
-char *ascii85_tuple(char *tuple, unsigned char *data) {
-	
-	register long i, x;
-	unsigned long code, quantum;
-
-	code = ((((unsigned long) data[0] << 8) | (unsigned long) data[1]) << 16) |
-		 ((unsigned long) data[2] << 8) | (unsigned long) data[3];
-
-	if (code == 0L) {
-		tuple[0] = 'z';
-		tuple[1]='\0';
-		return(tuple);
-	}
-	
-	quantum = 85UL*85UL*85UL*85UL;
-	for (i = 0; i < 4; i++) {
-		x = (long) (code/quantum);
-		code -= quantum*x;
-		tuple[i] = (char) (x+(int) '!');
-		quantum /= 85L;
-	}
-	tuple[4] = (char) ((code % 85L)+(int) '!');
-	tuple[5] = '\0';
-	
-	return tuple;
-}
-
-/* Кодирование указанного байта в символьное представление. При кодировании
- * байты отображаются в кортежи символов. После вормирования очередного кортежа
- * символов он добавляется в буфер, в котором формируется строка символов.
- * Строки записываются в выходной поток, указанный в структуре.
- */
-void ascii85_encode(struct ascii85 *a, const unsigned char code) {
-	
-	long  n;
-	register char *q;
-	
-	if (a == NULL)
-		return;
-
-	a->buffer[a->offset] = code;
-	a->offset++;
-	if (a->offset < 4)
-		return;
-	
-	for (q = ascii85_tuple(a->tuple, a->buffer); *q != '\0'; q++) {
-		a->line_break--;
-		if ((a->line_break < 0) && (*q != '%')) {
-		  if (a->file != NULL) {
-		    fputc('\n', a->file);
-		  }
-			a->line_break = LINEWIDTH;
-		}
-		if (a->file != NULL) {
-		  fputc((unsigned char) *q, a->file);
-		}
-	}
-	
-	a->offset = 0;
-
-}
-
-/* Сброс буфера символов в выходной поток. Используется для принудительного
- * вывода неполной строки символов после окончания процесса кодирования.
- */
-void ascii85_flush(struct ascii85 *a) {
-	
-	register char *tuple;
-	
-	if (a->offset > 0) {
-		while (a->offset < 4) {
-			a->buffer[a->offset] = '\0';
-			a->offset++;
-		}
-		tuple = ascii85_tuple(a->tuple, a->buffer);
-		if (a->file != NULL) {
-		  fprintf(a->file, (unsigned char *) (*tuple == 'z' ? "!!!!" : tuple));
-		}
-	}
-	
-	if (a->file != NULL) {
-	  fprintf(a->file, "~>\n");
-	}
-}
 
 /* Создать временный файл для записи фрагмента PostScript-программы,
  * с именем, соответствующим указанным: суффиксу фильтра, номеру процесса,

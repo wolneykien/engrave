@@ -2,7 +2,7 @@
  *  engrave --- preparation of image files for adaptive screening
  *              in a conventional RIP (Raster Image Processor).
  *
- *  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+ *  Copyright (C) 2018 Yuri V. Kouznetsov, Paul A. Wolneykien.
  *
  *  This program is free software: you can redistribute it and/or
  *  modify it under the terms of the GNU Affero General Public License
@@ -46,6 +46,7 @@
 #include <sys/types.h>
 #include "system.h"
 #include "filter.h"
+#include "ascii85.h"
 #include "misc.h"
 
 /* Код возврата, означающий ошибочное завершение программы. */
@@ -60,66 +61,6 @@ struct option const long_options[] =
 {
 	{NULL, 0, NULL, 0}
 };
-
-/* Вывести в указанный поток заголовок фрагмента PostScript-программы. */
-void write_header(FILE *stream) {
-
-	fprintf(stream, "%% Filter: ct filter from "PACKAGE" "VERSION"\n"
-			"%%%%LanguageLevel 2\n"
-			"gsave\t%% Save graphics state\n"
-			"1.0 setcolor\n"
-			"%f %f scale\n"
-			"%% Image operator:\n"
-			"<<\n"
-			"\t/ImageType 1\n"
-			"\t/Width %u\n"
-			"\t/Height %u\n"
-			"\t/BitsPerComponent 8\n"
-			"\t/Decode %s\n"
-			"\t/ImageMatrix [ %u 0 0 -%u 0 %u ]\n"		
-			"\t/DataSource currentfile /ASCII85Decode filter\n"
-			">>\n"
-			"%%%%BeginData\n"
-			"image\n",
-			(float) width/hres*72,
-			(float) height/vres*72,
-			width, height, miniswhite ? "[0 1]" : "[1 0]", width, height, height);
-
-}
-
-/* Вывести в указанный поток окончание фрагмента PostScript-программы. */
-void write_footer(FILE *stream) {
-
-	fprintf(stream, "%%%%EndData\n"
-			"grestore\t%% Restore previous graphic state\n");
-
-}
-
-/* Вывести указанную строку изображения в виде строки символов ASCII base 85.
- * Структура a определяет параметры кодирования и выходной поток. Строка из
- * count отсчётов по ss байт передаётся в буфере buf. Если указан признак
- * сброса flush, то содержимое буфера коировщика сбрасывается в выходной
- * поток.
- */
-void write_ASCII(struct ascii85 *a, char *buf, size_t ss, size_t count, int flush) {
-
-	int x;
-
-	/* Возврат, если длина строки равна 0. */
-	if (ss == 0 || count == 0)
-		return;
-
-	/* Последовательная передача отсчётов для кодирования. */
-	for (x = 0; x < ss*count; x += ss)
-		ascii85_encode(a, buf[x]);
-	
-	/* Если признак сброса установлен, сбросить буфер кодировщика в
-	 * выходной поток.
-	 */
-	if (flush)
-		ascii85_flush(a);
-
-}
 
 /* Вывод заголовка краткой справки. */
 void
@@ -153,11 +94,14 @@ main (int argc, char **argv)
   
   /* Набор из 4 строк для хранения имён временных файлов. */
   char filenames[4][MAXLINE] = { "", "", "", "" };
+
+  /* Набор функций кодировщика тайлов. */
+  struct filter_writer *filter_writer_p = &ascii_filter_writer;
   
   /* Набор из 4 структур для хранения информации при кодировании цифровых
    * изображений в символьное представление.
    */
-  struct ascii85 *ascii85_p[] = {
+  void *filter_writer_ctx[] = {
 	  NULL,
 	  NULL,
 	  NULL,
@@ -186,8 +130,8 @@ main (int argc, char **argv)
 	  if (!OK)
 		  fprintf(stderr, "%s: Finished with error.\n", program_name);
 	  for (i = 0; i < 4; i++) {
-		  if (ascii85_p[i] != NULL)
-			  destroy_ascii85(ascii85_p[i]);
+		  if (filter_writer_ctx[i] != NULL)
+			  filter_writer_p->close( filter_writer_ctx[i] );
 		  if (outfile[i] != NULL)
 			  fclose(outfile[i]);
 		  if (!OK && filenames[i][0] != '\0') {
@@ -251,9 +195,11 @@ main (int argc, char **argv)
 	 /* Запись заголовка. */
 	 write_header(outfile[c]);
 	 /* Создание и инициализация информации для кодирования. */
-	 ascii85_p[c] = new_ascii85(outfile[c]);
-	 if (ascii85_p[c] == NULL) {
-		 fprintf(stderr, "%s: Failed to allocate an ascii85 structure.\n", program_name);
+	 filter_writer_ctx[c] = filter_writer_p->open_tonemap( outfile[c] );
+	 if ( filter_writer_ctx[c] == NULL ) {
+		 fprintf(stderr,
+				 "%s: Failed to initialize the writer.\n",
+				 program_name);
 		 /* Завершение программы с признаком ошибки, в случае неудачной
 		  * инициализации структуры.
 		  */
@@ -284,12 +230,16 @@ main (int argc, char **argv)
 		   * для того, чтобы можно было затем записать завершающую
 		   * часть PostScript-кода. 
 		   */
-		  write_ASCII(ascii85_p[c], buf+c-c0, ss, width, y == (height-1));
+		  filter_writer_p->write_toneline( filter_writer_ctx[c],
+										   buf + c - c0, ss,
+										   width, y == (height - 1) );
   }
 
   /* Запись завершающей части PostScript-кода. */
-  for (c = c0; c <= cN; c++) 
-	  write_footer(outfile[c]);
+  for (c = c0; c <= cN; c++) {
+	  filter_writer_p->close( filter_writer_ctx[c] );
+	  filter_writer_ctx[c] = NULL;
+  }
 
   /* Установка признака успешного завершения. */
   OK = 1;

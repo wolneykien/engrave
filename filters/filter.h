@@ -2,7 +2,7 @@
  *  engrave --- preparation of image files for adaptive screening
  *              in a conventional RIP (Raster Image Processor).
  *
- *  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+ *  Copyright (C) 2018 Yuri V. Kouznetsov, Paul A. Wolneykien.
  *
  *  This program is free software: you can redistribute it and/or
  *  modify it under the terms of the GNU Affero General Public License
@@ -36,6 +36,9 @@
  */
 
 
+#ifndef __FILTER_H
+#define __FILTER_H
+
 /* Типы и константы, описание интерфейсов функций, которые используются при
  * реализации фильтров.
  */
@@ -63,20 +66,6 @@ extern float vres;			/* разрешение по вертикали; */
 extern int is_cmyk;			/* признак 4-красочного изображения; */
 extern int miniswhite;			/* признак негативного изображения. */
 
-/* Структура для хранения информации при кодировании цифрового изображения в
- * смвольное представление.
- */
-struct ascii85 {
-	int line_break;
-	int offset;
-	char buffer[4];
-	char tuple[6];
-	FILE *file;
-};
-
-/* Ширина строки символов закодированного изображения. */
-#define LINEWIDTH 75
-
 /* Тип функции, печатающей заголовок краткой справки. */
 typedef void(*usage_header_f)(FILE *out);
 
@@ -87,9 +76,57 @@ typedef void(*usage_params_f)(FILE *out);
 
 FILE *open_tmp_file(const char *fsuf, int color_idx, char *filename);
 
-struct ascii85 *new_ascii85(FILE *outfile);
-void destroy_ascii85(struct ascii85 *ascii85_p);
-void ascii85_encode(struct ascii85 *a, const unsigned char code);
+/**
+ * Структура с функциями кодировщика фильтра.
+ */
+struct filter_writer {
+	/**
+	 * Инициализирует кодировщик для записи карты тайлов
+	 * в файл #outfile. Принимает признак #mask негативного
+	 * изображения (маски). Возвращает указатель на контекст,
+	 * который затем используется в других функциях.
+	 */
+	(void *) (*open_tilemap)      ( FILE *outfile, int mask );
+	
+	/**
+	 * Инициализирует кодировщик для записи тонового изображения
+	 * в файл #outfile. Возвращает указатель на контекст,
+	 * который затем используется в других функциях.
+	 */
+	(void *) (*open_tonemap)      ( FILE *outfile );
+
+	/**
+	 * Кодирует #zl пустых строк.
+	 */
+	(void)   (*write_empty_lines) ( void *ctx, unsigned int zl );
+
+	/**
+	 * Кодирует #z пробелов.
+	 */
+	(void)   (*write_spaces)      ( void *ctx, unsigned int z );
+
+	/**
+	 * Кодирует тайл с номером #tile_index и относительной
+	 * площадью #tile_area.
+	 */
+	(void)   (*write_tile)        ( void *ctx,
+									unsigned char tile_index,
+									unsigned char tile_area );
+
+	/**
+	 * Выводит строку тонового изображения. Строка из #count отсчётов
+	 * по #ss байт передаётся в буфере #buf. Если указан признак
+	 * сброса #flush, то содержимое буфера коировщика сбрасывается
+	 * в выходной поток.
+	 */
+	(void)  (*write_toneline)     ( void *ctx, char *buf, size_t ss,
+									size_t count, int flush );
+
+	/**
+	 * Закрывает кодировщик и освобождает ресурсы.
+	 */
+	(void)   (*close)             ( void *ctx );
+};
 
 char *get_filter_option(int i, char *dst_fopt, char *fopts);
 
@@ -99,3 +136,6 @@ int decode_switches (int argc, char **argv, int error_code, \
 		     usage_params_f usage_params);
 
 void write_outbuf(char *outbuf, size_t ss, size_t len);
+
+
+#endif /* __FILTER_H */

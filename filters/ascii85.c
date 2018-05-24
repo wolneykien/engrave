@@ -76,6 +76,7 @@ struct ascii85 {
 	int offset;
 	char buffer[4];
 	char tuple[6];
+	int is_tilemap;
 	FILE *file;
 };
 
@@ -94,8 +95,10 @@ struct ascii85 *
 _ascii85_open_tilemap( FILE *outfile, int mask )
 {
 	struct ascii85 * ctx = new_ascii85( outfile );
-	if ( ctx )
+	if ( ctx ) {
+		ctx->is_tilemap = 1;
 		write_tilemap_header( outfile, mask );
+	}
 	
 	return ctx;
 }
@@ -283,12 +286,14 @@ static void write_footer( FILE *stream );
 static void
 _ascii85_close( struct ascii85 *ascii85_p )
 {
-	/* Сброс буферов кодировщиков. */
-	ascii85_encode( ascii85_p, 0xFF );
-	ascii85_encode( ascii85_p, 0xFF );
-	ascii85_encode( ascii85_p, 0xFF );
-	ascii85_flush( ascii85_p );
-
+	if ( ascii85_p->is_tilemap ) {
+		/* Сброс буферов кодировщиков. */
+		ascii85_encode( ascii85_p, 0xFF );
+		ascii85_encode( ascii85_p, 0xFF );
+		ascii85_encode( ascii85_p, 0xFF );
+		ascii85_flush( ascii85_p );
+	}
+	
 	/* Вывод завершающей части. */
 	write_footer( ascii85_p->file );
 
@@ -324,6 +329,7 @@ new_ascii85(FILE *outfile) {
 		a->offset = 0;
 		a->file = outfile;
 		a->buffer[a->offset] = '\0';
+		a->is_tilemap = 0;
 	}
 	return a;
 }

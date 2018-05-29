@@ -82,18 +82,8 @@ main (int argc, char **argv)
   /* Размер отсчёта в байтах. */
   size_t ss;
   
-  /* Масив файловых указателей для оновременной записи в 4 временных
-   * файла.
-   */
-  FILE *outfile[] = {
-	  NULL,
-	  NULL,
-	  NULL,
-	  NULL
-  };
-  
   /* Набор из 4 строк для хранения имён временных файлов. */
-  char filenames[4][MAXLINE] = { "", "", "", "" };
+  const char *filenames[4] = { NULL, NULL, NULL, NULL };
 
   /* Набор функций кодировщика тайлов. */
   struct filter_writer *filter_writer_p = &ascii85_filter_writer;
@@ -130,13 +120,16 @@ main (int argc, char **argv)
 	  if (!OK)
 		  fprintf(stderr, "%s: Finished with error.\n", program_name);
 	  for (i = 0; i < 4; i++) {
-		  if (filter_writer_ctx[i] != NULL)
+		  if (filter_writer_ctx[i] != NULL) {
 			  filter_writer_p->close( filter_writer_ctx[i] );
-		  if (outfile[i] != NULL)
-			  fclose(outfile[i]);
-		  if (!OK && filenames[i][0] != '\0') {
-			  fprintf(stderr, "%s: Delete temporary file: %s\n", program_name, filenames[i]);
-			  unlink(filenames[i]);
+			  filter_writer_ctx[i] = NULL;
+		  }
+		  if (!OK && filenames[i] != NULL) {
+			  fprintf( stderr, "%s: Delete temporary file: %s\n", program_name,
+					  filenames[i] );
+			  unlink( filenames[i] );
+			  free( filenames[i] );
+			  filenames[i] = NULL;
 		  }
 	  }
 	  if (buf != NULL)
@@ -187,13 +180,14 @@ main (int argc, char **argv)
    * для кодирования избражения в символьное представление.
    */
   for (c = c0; c <= cN; c++) {
-	 /* Открытие файла с именем, соответствующим номеру цветового канала. */
-	 if ((outfile[c] = open_tmp_file("ct", c, filenames[c])) == NULL) {
-		/* Выход с признаком ошибки, если файл не был открыт. */
+	 /* Получение имени временного файла. */
+	 if ((filenames[c] = get_tmp_filter_file_name( "ct", c )) == NULL) {
+		/* Выход с признаком ошибки, если имя не получено. */
+		fprintf( stderr, "%s: Can't get temp file name\n", program_name );
 		exit(EXIT_FAILURE);
 	 }
 	 /* Создание и инициализация информации для кодирования. */
-	 filter_writer_ctx[c] = filter_writer_p->open_tonemap( outfile[c] );
+	 filter_writer_ctx[c] = filter_writer_p->open_tonemap( filenames[c] );
 	 if ( filter_writer_ctx[c] == NULL ) {
 		 fprintf(stderr,
 				 "%s: Failed to initialize the writer.\n",

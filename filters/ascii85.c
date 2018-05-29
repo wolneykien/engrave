@@ -44,8 +44,8 @@ ASCII-85. */
 #include "system.h"
 #include "ascii85.h"
 
-void * ascii85_open_tilemap( FILE *outfile, int mask );
-void * ascii85_open_tonemap( FILE *outfile );
+void * ascii85_open_tilemap( const char *outfile, int mask );
+void * ascii85_open_tonemap( const char *outfile );
 void ascii85_write_empty_lines( void *ctx, unsigned int zl );
 void ascii85_write_spaces( void *ctx, unsigned int z );
 void ascii85_write_tile( void *ctx, unsigned char tile_index,
@@ -83,21 +83,21 @@ struct ascii85 {
 /* Ширина строки символов закодированного изображения. */
 #define LINEWIDTH 75
 
-static struct ascii85 *new_ascii85(FILE *outfile);
-static void write_tilemap_header(FILE *stream, int mask);
+static struct ascii85 *new_ascii85( const char *outfile );
+static void write_tilemap_header( FILE *stream, int mask );
 
 /**
  * Инициализирует структуру ASCII-85 для записи карты тайлов
  * в файл #outfile. Принимает признак #mask негативного
- * изображения (маски). Возвращает указатель на неё.
+ * изображения (маски). Возвращает указатель на структуру.
  */
 struct ascii85 *
-_ascii85_open_tilemap( FILE *outfile, int mask )
+_ascii85_open_tilemap( const char *outfile, int mask )
 {
 	struct ascii85 * ctx = new_ascii85( outfile );
 	if ( ctx ) {
 		ctx->is_tilemap = 1;
-		write_tilemap_header( outfile, mask );
+		write_tilemap_header( ctx->file, mask );
 	}
 	
 	return ctx;
@@ -111,7 +111,7 @@ _ascii85_open_tilemap( FILE *outfile, int mask )
  * который затем используется в других функциях.
  */
 void *
-ascii85_open_tilemap( FILE *outfile, int mask )
+ascii85_open_tilemap( const char *outfile, int mask )
 {
 	return (void *) _ascii85_open_tilemap( outfile, mask );
 }
@@ -121,14 +121,14 @@ static void write_tonemap_header( FILE *stream );
 
 /**
  * Инициализирует структуру ASCII-85 для записи тонового
- * изображения в файл #outfile. Возвращает указатель на неё.
+ * изображения в файл #outfile. Возвращает указатель на структуру.
  */
 struct ascii85 *
-_ascii85_open_tonemap( FILE *outfile )
+_ascii85_open_tonemap( const char *outfile )
 {
 	struct ascii85 * ctx = new_ascii85( outfile );
 	if ( ctx )
-		write_tonemap_header( outfile );
+		write_tonemap_header( ctx->file );
 	
 	return ctx;
 }
@@ -140,7 +140,7 @@ _ascii85_open_tonemap( FILE *outfile )
  * который затем используется в других функциях.
  */
 void *
-ascii85_open_tonemap( FILE *outfile )
+ascii85_open_tonemap( const char *outfile )
 {
 	return (void *) _ascii85_open_tonemap( outfile );
 }
@@ -297,6 +297,9 @@ _ascii85_close( struct ascii85 *ascii85_p )
 	/* Вывод завершающей части. */
 	write_footer( ascii85_p->file );
 
+	/* Закрытие файла. */
+	fclose( ascii85_p->file );
+
 	/* Освобождение памяти */
 	destroy_ascii85( ascii85_p );
 }
@@ -319,7 +322,7 @@ ascii85_close( void *ctx )
  * Структура связыает процесс кодирования с указанным файлом.
  */
 static struct ascii85 *
-new_ascii85(FILE *outfile) {
+new_ascii85( const char *outfile ) {
 
 	struct ascii85 *a;
 
@@ -330,6 +333,13 @@ new_ascii85(FILE *outfile) {
 		a->file = outfile;
 		a->buffer[a->offset] = '\0';
 		a->is_tilemap = 0;
+		a->file = fopen( outfile, "w" );
+		if ( a->file == NULL) {
+			fprintf( stderr, "Can't create temp file %s\n",
+					 outfile );
+			free( a );
+			a = NULL;
+		}
 	}
 	return a;
 }
@@ -339,8 +349,8 @@ new_ascii85(FILE *outfile) {
  */
 static void
 destroy_ascii85(struct ascii85 *ascii85_p) {
-	if (ascii85_p != NULL) {
-		free(ascii85_p);
+	if ( ascii85_p != NULL ) {
+		free( ascii85_p );
 	}
 }
 

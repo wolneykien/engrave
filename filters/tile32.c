@@ -439,16 +439,8 @@ main (int argc, char **argv)
   /* Набор функций кодировщика тайлов. */
   struct filter_writer *filter_writer_p = &ascii85_filter_writer;
 
-  /* Набор указателей на файлы для записи позитивных штриховых изображений. */
-  FILE *pos_outfile[] = {
-	  NULL,
-	  NULL,
-	  NULL,
-	  NULL
-  };
-
   /* Имена файлов для записи позитивных штриховых изображений. */
-  char pos_filenames[4][MAXLINE] = { "\0", "\0", "\0", "\0" };
+  const char *pos_filenames[4] = { NULL, NULL, NULL, NULL };
   
   /* Контексты кодировщиков позитивных тайлов. */
   void *pos_filter_writer[] = {
@@ -457,17 +449,9 @@ main (int argc, char **argv)
 	  NULL,
 	  NULL
   };
-  
-  /* Набор указателей на файлы для записи маскирующих изображений. */
-  FILE *neg_outfile[] = {
-	  NULL,
-	  NULL,
-	  NULL,
-	  NULL
-  };
-  
+    
   /* Имена файлов для записи маскирующих изображений. */
-  char neg_filenames[4][MAXLINE] = { "\0", "\0", "\0", "\0" };
+  const char *neg_filenames[4] = { NULL, NULL, NULL, NULL };
 
   /* Контексты кодировщиков маскирующих тайлов. */
   void *neg_filter_writer[] = {
@@ -527,21 +511,27 @@ main (int argc, char **argv)
 	  if (!OK)
 		  fprintf(stderr, "%s: Finished with error.\n", program_name);
 	  for (i = 0; i < 4; i++) {
-		  if (pos_filter_writer[i] != NULL)
+		  if (pos_filter_writer[i] != NULL) {
 			  filter_writer_p->close( pos_filter_writer[i] );
-		  if (pos_outfile[i] != NULL)
-			  fclose(pos_outfile[i]);
-		  if (!OK && pos_filenames[i][0] != '\0') {
-			  fprintf(stderr, "%s: Delete temporary file: %s\n", program_name, pos_filenames[i]);
-			  unlink(pos_filenames[i]);
+			  pos_filter_writer[i] = NULL;
 		  }
-		  if (neg_filter_writer[i] != NULL)
+		  if (!OK && pos_filenames[i] != NULL) {
+			  fprintf( stderr, "%s: Delete temporary file: %s\n",
+					   program_name, pos_filenames[i] );
+			  unlink( pos_filenames[i] );
+			  free( pos_filenames[i] );
+			  pos_filenames[i] = NULL;
+		  }
+		  if (neg_filter_writer[i] != NULL) {
 			  filter_writer_p->close( neg_filter_writer[i] );
-		  if (neg_outfile[i] != NULL)
-			  fclose(neg_outfile[i]);
-		  if (!OK && neg_filenames[i][0] != '\0') {
-			  fprintf(stderr, "%s: Delete temporary file: %s\n", program_name, neg_filenames[i]);
-			  unlink(neg_filenames[i]);
+			  neg_filter_writer[i] = NULL;
+		  }
+		  if (!OK && neg_filenames[i] != NULL) {
+			  fprintf( stderr, "%s: Delete temporary file: %s\n",
+					   program_name, neg_filenames[i] );
+			  unlink( neg_filenames[i] );
+			  free( neg_filenames[i] );
+			  neg_filenames[i] = NULL;
 		  }
 	  }
 	  
@@ -618,15 +608,27 @@ main (int argc, char **argv)
   for (c = c0; c <= cN; c++) {
 	 /* Открытие файлов. */
     if (select_mask[0]) {
-      pos_outfile[c] = open_tmp_file("s", c, pos_filenames[c]);
+      pos_filenames[c] = get_tmp_filter_file_name( "s", c );
+	  if ( pos_filenames[c] == NULL ) {
+		/* Выход с признаком ошибки, если имя не получено. */
+		fprintf( stderr, "%s: Can't get temp file name\n", program_name );
+		exit(EXIT_FAILURE);
+	  }
     }
     if (select_mask[1]) {
-      neg_outfile[c] = open_tmp_file("m", c, neg_filenames[c]);
+      neg_filenames[c] = get_tmp_filter_file_name( "m", c );
+	  if ( neg_filenames[c] == NULL ) {
+		/* Выход с признаком ошибки, если имя не получено. */
+		fprintf( stderr, "%s: Can't get temp file name\n", program_name );
+		exit(EXIT_FAILURE);
+	  }
     }
 	 
 	 /* Инициализация кодировщиков. */
-	 pos_filter_writer[c] = filter_writer_p->open_tilemap( pos_outfile[c], 0 );
-	 neg_filter_writer[c] = filter_writer_p->open_tilemap( neg_outfile[c], 1 );
+	 pos_filter_writer[c] =
+		 filter_writer_p->open_tilemap( pos_filenames[c], 0 );
+	 neg_filter_writer[c] =
+		 filter_writer_p->open_tilemap( neg_filenames[c], 1 );
 	 if (pos_filter_writer[c] == NULL || neg_filter_writer[c] == NULL) {
 		 fprintf(stderr,
 				 "%s: Failed to initialize the tile writers.\n",

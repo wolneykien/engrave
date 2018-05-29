@@ -2,7 +2,7 @@
  *  engrave --- preparation of image files for adaptive screening
  *              in a conventional RIP (Raster Image Processor).
  *
- *  Copyright (C) 2015 Yuri V. Kouznetsov, Paul A. Wolneykien.
+ *  Copyright (C) 2018 Yuri V. Kouznetsov, Paul A. Wolneykien.
  *
  *  This program is free software: you can redistribute it and/or
  *  modify it under the terms of the GNU Affero General Public License
@@ -145,8 +145,9 @@ static struct option const long_options[] =
 
 /* Функция для включения содержимого указанного файла в выходной файл.
  * Опционально, файл может быть удалён. */
-void dump_file(FILE *out, char *fn, int unlnk) {
-
+static void
+dump_file( FILE *out, const char *fn, int unlnk )
+{
 	FILE *f = NULL;
 	static char str[MAXLINE];
 
@@ -1179,6 +1180,42 @@ prepare_preview(char *thumbnail_name, pid_t pid, uint16 phm, int ss, uint16 tiff
 
 }
 
+static void
+delete_temporary_filter_file( const char *fsuf, pid_t pid,
+							  int fidx, int color_idx )
+{
+	const char *tmp_fn = NULL;
+	
+	tmp_fn = get_tmp_file_name( fsuf, pid, fidx, color_idx );
+	if ( !tmp_fn ) {
+		fprintf(stderr, "Unable to get the name of a filter "	\
+				"temporary file\n");
+	} else {
+		if ( !unlink(tmp_fn) ) {
+			fprintf(stderr, "Unable to delete temporary file\n");
+		} else if ( want_verbose ) {
+			fprintf(stderr, "Delete temporary file %s\n", tmp_fn);
+		}
+		free( tmp_fn ); tmp_fn = NULL;
+	}
+}
+
+static void
+dump_temporary_filter_file( FILE *out, const char *fsuf, pid_t pid,
+							int fidx, int color_idx, int unlnk )
+{
+	const char *tmp_fn = NULL;
+	
+	tmp_fn = get_tmp_file_name( fsuf, pid, fidx, color_idx );
+	if ( !tmp_fn ) {
+		fprintf(stderr, "Unable to get the name of a filter "	\
+				"temporary file\n");
+	} else {
+		dump_file( out, tmp_fn, unlink);
+		free( tmp_fn ); tmp_fn = NULL;
+	}
+}
+
 /* Функция обработки файла изображения. */
 int
 process (char *file_name)
@@ -1201,8 +1238,6 @@ process (char *file_name)
   /* Параметры фильтрации. */
   char f_cmd[MAXLINE];		/* Комманда для вызова фильтра. */
   int filter_count;		/* Количество фильтров. */
-
-  char tmp_fn[MAXLINE];		/* Имя временного файла. */
 
   /* Переменные для работы с многокрасочными изображениями. */
   int c0, c, cN;	/* Counter for colors */
@@ -1278,15 +1313,9 @@ process (char *file_name)
 	/* Удаление временных файлов, созданных фильтрами. */
 	for (c = c0; c <= cN; c++) {
 	  for (i = 0; i < filter_count; i++) {
-	    if (unlink(get_tmp_file_name(tmp_fn, "ct", pid, i, c)) && want_verbose) {
-	      fprintf(stderr, "Delete temporary file %s\n", tmp_fn);
-	    }
-	    if (unlink(get_tmp_file_name(tmp_fn, "s", pid, i, c)) && want_verbose) {
-	      fprintf(stderr, "Delete temporary file %s\n", tmp_fn);
-	    }
-	    if (unlink(get_tmp_file_name(tmp_fn, "m", pid, i, c)) && want_verbose) {
-	      fprintf(stderr, "Delete temporary file %s\n", tmp_fn);
-	    }
+		  delete_temporary_filter_file( "ct", pid, i, c );
+		  delete_temporary_filter_file( "s", pid, i, c );
+		  delete_temporary_filter_file( "m", pid, i, c );
 	  }
 	}
   }
@@ -1509,15 +1538,15 @@ process (char *file_name)
 	  fprintf(output_file, "%% Painting CT images\n");
 	  /* Включение тонового изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
-		  dump_file(output_file, get_tmp_file_name(tmp_fn, "ct", pid, i, c), 1);
+		  dump_temporary_filter_file( output_file, "ct", pid, i, c, 1 );
 	  fprintf(output_file, "%% Painting mask images\n");
 	  /* Включение маскирующего изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
-		  dump_file(output_file, get_tmp_file_name(tmp_fn, "m", pid, i, c), 1); 
+		  dump_temporary_filter_file( output_file, "m", pid, i, c, 1 );
 	  fprintf(output_file, "%% Painting stroke images\n");
 	  /* Включение рисующего изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
-		  dump_file(output_file, get_tmp_file_name(tmp_fn, "s", pid, i, c), 1); 
+		  dump_temporary_filter_file( output_file, "s", pid, i, c, 1 );
   }
 
   /* Печать завершающей части PostScript программы. */

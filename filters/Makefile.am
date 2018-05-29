@@ -9,7 +9,7 @@ tile32_LDADD = -lm -ltiff libtile32f.a libfilter.a ../share/libmisc.a
 pkgdata_DATA = tile32.ps
 
 noinst_LIBRARIES = libfilter.a libtile32f.a
-libfilter_a_SOURCES = filter.c ascii85.c
+libfilter_a_SOURCES = filter.c ascii85.c tiffout.c
 libtile32f_a_SOURCES = tile32f.c
 
 AM_CFLAGS = -DFILTERS=\"$(pkglibexecdir)\" -DPSLIB=\"$(pkgdatadir)\" -I ../share -I ../filters

@@ -135,7 +135,7 @@ main (int argc, char **argv)
   };
   
   /* Набор из 4 строк для хранения имён временных файлов. */
-  char filenames[4][MAXLINE] = { "", "", "", "" };
+  const char *filenames[4] = { NULL, NULL, NULL, NULL };
   
   /* Буфер для хранения одной строки изображения. */
   char *buf = NULL;
@@ -159,11 +159,16 @@ main (int argc, char **argv)
 	  if (!OK)
 		  fprintf(stderr, "%s: Finished with error.\n", program_name);
 	  for (i = 0; i < 4; i++) {
-		  if (outfile[i] != NULL)
-			  fclose(outfile[i]);
-		  if (!OK && filenames[i][0] != '\0') {
-			  fprintf(stderr, "%s: Delete temporary file: %s\n", program_name, filenames[i]);
-			  unlink(filenames[i]);
+		  if (outfile[i] != NULL) {
+			  fclose( outfile[i] );
+			  outfile[i] = NULL;
+		  }
+		  if (!OK && filenames[i] != NULL) {
+			  fprintf( stderr, "%s: Delete temporary file: %s\n",
+					   program_name, filenames[i] );
+			  unlink( filenames[i] );
+			  free( filenames[i] );
+			  filenames[i] = NULL;
 		  }
 	  }
 	  if (buf != NULL)
@@ -213,9 +218,15 @@ main (int argc, char **argv)
   /* Создание временных PostScript-файлов. */
   for (c = c0; c <= cN; c++) {
 	 /* Открытие файла с именем, соответствующим номеру цветового канала. */
-	 if ((outfile[c] = open_tmp_file("ct", c, filenames[c])) == NULL) {
-		/* Выход с признаком ошибки, если файл не был открыт. */
-		exit(EXIT_FAILURE);
+	 if ((filenames[c] = get_tmp_filter_file_name( "ct", c )) == NULL) {
+		 fprintf( stderr, "%s: Can't get temp file name\n", program_name );
+		 exit(EXIT_FAILURE);
+	 }
+	 if ((outfile[c] = fopen( filenames[c], "w" )) == (FILE *) NULL) {
+		 fprintf( stderr, "%s: Can't create file %s\n", program_name,
+				  filenames[c] );
+		 /* Выход с признаком ошибки, если файл не был открыт. */
+		 exit(EXIT_FAILURE);
 	 }
 	 /* Запись заголовка. */
 	 write_header(outfile[c]);

@@ -79,11 +79,8 @@ void init_cleanup();
 int push_cleanup(cleanup_f cleanup);
 cleanup_f pop_cleanup();
 
-/* Получить имя временного файла (разместив его по указанному адресу) для записи
- * фрагмента PostScript-программы, соответствующей суффиксу фильтра, номеру
- * процесса, номеру фильтра и номеру цветового канала.
- */
-char *get_tmp_file_name(char *str, const char *fsuf, pid_t pid, int fidx, int color_idx);
+const char *get_tmp_file_name( const char *fsuf, pid_t pid, int fidx,
+							   int color_idx );
 
 /* Функции для работы с цветовыми каналами. */
 char *get_cmyk_color(int i);

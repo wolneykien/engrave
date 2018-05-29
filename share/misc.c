@@ -199,27 +199,31 @@ void init_cleanup(char *program_name) {
 
 }
 
-/* Получить имя временного файла (разместив его по указанному адресу) для записи
- * фрагмента PostScript-программы, соответствующей суффиксу фильтра, номеру
- * процесса, номеру фильтра и номеру цветового канала.
+/**
+ * Получить имя временного файла для записи части изображения,
+ * соответствующей суффиксу фильтра #fsuf, номеру процесса #pid,
+ * номеру фильтра #fidx и номеру цветового канала #color_idx.
  */
-char *get_tmp_file_name(char *str, const char *fsuf, pid_t pid, int fidx, int color_idx) {
-
+const char *
+get_tmp_file_name( const char *fsuf, pid_t pid, int fidx,
+				   int color_idx )
+{
 	/* Переменные для хранения имени и пути к файлу. */
 	char outpath[MAXLINE];
 	char outname[MAXLINE];
+	char str[MAXLINE];
 
-	strcpy(outpath, P_tmpdir);
-	snprintf(outname, sizeof(outname), "%u.%u.%s", pid, fidx, fsuf);
+	strncpy( outpath, P_tmpdir, sizeof(outpath) );
+	snprintf( outname, sizeof(outname), "%u.%u.%s", pid, fidx, fsuf );
 #ifndef __MINGW32__
 	pathcat(outpath, "/");
 #else
 	pathcat(outpath, "\\");
 #endif
-	sprintf(str, "%s%s.%s", outpath, outname, get_cmyk_color_suf(color_idx));
+	snprintf( str, sizeof(str), "%s%s.%s", outpath, outname,
+			 get_cmyk_color_suf(color_idx) );
 
-	return str;
-
+	return strdup( str );
 }
 
 /* Получить комманду для устуновки цветового пространства по номеру цветового

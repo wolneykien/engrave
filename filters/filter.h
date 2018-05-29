@@ -74,7 +74,7 @@ typedef void(*usage_header_f)(FILE *out);
  */
 typedef void(*usage_params_f)(FILE *out);
 
-FILE *open_tmp_file(const char *fsuf, int color_idx, char *filename);
+const char *get_tmp_filter_file_name( const char *fsuf, int color_idx );
 
 /**
  * Структура с функциями кодировщика фильтра.
@@ -82,18 +82,18 @@ FILE *open_tmp_file(const char *fsuf, int color_idx, char *filename);
 struct filter_writer {
 	/**
 	 * Инициализирует кодировщик для записи карты тайлов
-	 * в файл #outfile. Принимает признак #mask негативного
+	 * в файл с именем #outfile. Принимает признак #mask негативного
 	 * изображения (маски). Возвращает указатель на контекст,
 	 * который затем используется в других функциях.
 	 */
-	void * (*open_tilemap)      ( FILE *outfile, int mask );
+	void * (*open_tilemap)      ( const char *outfile, int mask );
 	
 	/**
 	 * Инициализирует кодировщик для записи тонового изображения
-	 * в файл #outfile. Возвращает указатель на контекст,
+	 * в файл с именем #outfile. Возвращает указатель на контекст,
 	 * который затем используется в других функциях.
 	 */
-	void * (*open_tonemap)      ( FILE *outfile );
+	void * (*open_tonemap)      ( const char *outfile );
 
 	/**
 	 * Кодирует #zl пустых строк.

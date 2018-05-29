@@ -84,36 +84,24 @@ static struct option const base_long_options[] =
 	{NULL, 0, NULL, 0}
 };
 
-/* Создать временный файл для записи фрагмента PostScript-программы,
- * с именем, соответствующим указанным: суффиксу фильтра, номеру процесса,
- * номеру фильтра и номеру цветового канала. Функция возвращает указатель на
- * поток, а имя файла записывается по указанному адресу.
+/**
+ * Возвращает имя временного файла для записи слоя изображения
+ * с именем, соответствующим указанным параметрам: суффиксу
+ * фильтра #fsuf и номеру цветового канала #color_idx.
  */
-FILE *open_tmp_file(const char *fsuf, int color_idx, char *filename) {
-
-	char full_outname[MAXLINE];
-	FILE *file;
-	
+const char *
+get_tmp_filter_file_name( const char *fsuf, int color_idx )
+{
 	if ( !pid ) {
-          fprintf( stderr, "%s: Can't create temp. file: parent PID isn't set\n",
-                   program_name );
-          return NULL;
-        }
+		fprintf( stderr, "%s: Can't create temp. file: parent PID isn't set\n",
+				 program_name );
+		return NULL;
+	}
 	
 	/* Получить полное имя файла по номеру процесса, номера фильтра и
 	 * номеру цветового канала.
 	 */
-	get_tmp_file_name(full_outname, fsuf, pid, fidx, color_idx);
-	if ((file = fopen(full_outname, "w")) == (FILE *) NULL) {
-		fprintf(stderr, "%s: Can't create file %s\n", program_name, full_outname);
-		return NULL;
-	}
-
-	if (filename != NULL)
-		strcpy(filename, full_outname);
-	
-	return file;
-
+	return get_tmp_file_name( fsuf, pid, fidx, color_idx );
 }
 
 /* Вывод краткой справки и завершение работы с указанным кодом возврата. */

@@ -870,14 +870,14 @@ add_preview (char *psname, char *tiffname)
 	void cleanup() {
 	  if (eps != NULL) {
 	    fclose(eps);
-	    if (unlink(psname) && want_verbose) {
+	    if (!unlink(psname) && want_verbose) {
 	      fprintf(stderr, "Delete temporary file %s\n", psname);
 	    }
 	  }
 	  if (tif != NULL) {
 	    fclose(tif);
 	    if (!want_test_run) {
-	      if (unlink(tiffname) && want_verbose) {
+	      if (!unlink(tiffname) && want_verbose) {
 		fprintf(stderr, "Delete temporary file %s\n", tiffname);
 	      }
 	    } else {
@@ -1234,7 +1234,7 @@ delete_temporary_filter_file( const char *fsuf, pid_t pid,
 				"temporary file\n");
 	} else {
 		if ( !want_test_run ) {
-			if ( !unlink(tmp_fn) ) {
+			if ( unlink(tmp_fn) ) {
 				fprintf(stderr, "Unable to delete temporary file\n");
 			} else if ( want_verbose ) {
 				fprintf(stderr, "Delete temporary file %s\n", tmp_fn);

@@ -208,8 +208,7 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf,
 		 * Альтернативным условием является признак пропуска
 		 * цветового канала.
 		 */
-	        if ((want_half && x > half_len)
-		    || passthrough[c]) {
+		if ( (want_half && x > half_len) || passthrough[c] ) {
 			tile_index = 0;
 			*outbuf = E;
 		} else {
@@ -270,17 +269,17 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf,
 			 * информация о горизонтальных и вертикальных пробелах,
 			 * в соответствие со значениями счётчиков.
 			 */
-			if (zl) {
-				filter_writer_p->write_empty_lines( filter_writer_ctx, zl );
+			if ( zl ) {
+				filter_writer_p->write_tile_lines( filter_writer_ctx, zl );
 			}
-			if (z) {
+			if ( z ) {
 				filter_writer_p->write_spaces( filter_writer_ctx, z );
 			}
-				
+
 			/* Записываются номер и площадь тайла. */
 			filter_writer_p->write_tile( filter_writer_ctx,
-									   (unsigned char) tile_index,
-									   tile_area );
+										 (unsigned char) tile_index,
+										 tile_area );
 				
 			/* Обновление и сброс счётчиков стационарных
 			 * участков. */
@@ -306,7 +305,6 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf,
 	/* Увеличиваем счётчики пустых (стационарных) строк. */
 	mi->nzl++;
 	mi->pzl++;
-
 }
 
 /* Вывод заголовка краткой справки. */

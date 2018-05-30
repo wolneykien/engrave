@@ -99,9 +99,10 @@ struct filter_writer {
 	void * (*open_tonemap)      ( const char *outfile );
 
 	/**
-	 * Кодирует #zl пустых строк.
+	 * Кодирует #zl строк тайлов. Если #zl > 1, то дополнительно
+     * записываются пустые строки.
 	 */
-	void   (*write_empty_lines) ( void *ctx, unsigned int zl );
+	void   (*write_tile_lines) ( void *ctx, unsigned int zl );
 
 	/**
 	 * Кодирует #z пробелов.

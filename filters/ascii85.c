@@ -46,7 +46,7 @@ ASCII-85. */
 
 void * ascii85_open_tilemap( const char *outfile, int mask );
 void * ascii85_open_tonemap( const char *outfile );
-void ascii85_write_empty_lines( void *ctx, unsigned int zl );
+void ascii85_write_tile_lines( void *ctx, unsigned int zl );
 void ascii85_write_spaces( void *ctx, unsigned int z );
 void ascii85_write_tile( void *ctx, unsigned char tile_index,
 						 unsigned char tile_area );
@@ -60,7 +60,7 @@ void ascii85_close( void *ctx );
 struct filter_writer ascii85_filter_writer = {
 	.open_tilemap      = ascii85_open_tilemap,
 	.open_tonemap      = ascii85_open_tonemap,
-	.write_empty_lines = ascii85_write_empty_lines,
+	.write_tile_lines = ascii85_write_tile_lines,
 	.write_spaces      = ascii85_write_spaces,
 	.write_tile        = ascii85_write_tile,
 	.write_toneline    = ascii85_write_toneline,
@@ -149,10 +149,11 @@ ascii85_open_tonemap( const char *outfile )
 static void ascii85_encode(struct ascii85 *a, const unsigned char code);
 
 /**
- * Записывает #zl пустых строк в указанный буфер ASCII-85.
+ * Записывает #zl строк тайлов в указанный буфер ASCII-85.
+ * Если #zl > 1, то дополнительно записываются пустые строки.
  */
 static void
-_ascii85_write_empty_lines( struct ascii85 *ascii85_p, unsigned int zl )
+_ascii85_write_tile_lines( struct ascii85 *ascii85_p, unsigned int zl )
 {
 	if (zl) {
 		ascii85_encode(ascii85_p, 0xFF);
@@ -163,13 +164,13 @@ _ascii85_write_empty_lines( struct ascii85 *ascii85_p, unsigned int zl )
 }
 
 /**
- * Записывает #zl пустых строк в буфер ASCII-85 (#ctx).
- * Является обёрткой вокруг _ascii85_write_empty_lines().
+ * Записывает #zl строк тайлов в указанный буфер ASCII-85.
+ * Является обёрткой вокруг _ascii85_write_tile_lines().
  */
 void
-ascii85_write_empty_lines( void *ctx, unsigned int zl )
+ascii85_write_tile_lines( void *ctx, unsigned int zl )
 {
-	_ascii85_write_empty_lines( (struct ascii85 *) ctx, zl );
+	_ascii85_write_tile_lines( (struct ascii85 *) ctx, zl );
 }
 
 /**

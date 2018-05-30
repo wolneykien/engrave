@@ -48,7 +48,7 @@
 
 void * tiffout_open_bitmap( const char *outfile, int mask );
 void * tiffout_open_tonemap( const char *outfile );
-void tiffout_write_empty_lines( void *ctx, unsigned int zl );
+void tiffout_write_tile_lines( void *ctx, unsigned int zl );
 void tiffout_write_spaces( void *ctx, unsigned int z );
 void tiffout_write_tile( void *ctx, unsigned char tile_index,
 						 unsigned char tile_area );
@@ -62,7 +62,7 @@ void tiffout_close( void *ctx );
 struct filter_writer tiffout_filter_writer = {
 	.open_tilemap      = tiffout_open_bitmap,
 	.open_tonemap      = tiffout_open_tonemap,
-	.write_empty_lines = tiffout_write_empty_lines,
+	.write_tile_lines = tiffout_write_tile_lines,
 	.write_spaces      = tiffout_write_spaces,
 	.write_tile        = tiffout_write_tile,
 	.write_toneline    = tiffout_write_toneline,
@@ -143,37 +143,40 @@ _tiffout_open_tonemap( const char *outfile )
 void *
 tiffout_open_tonemap( const char *outfile )
 {
-	weightfuncs_init();
 	return (void *) _tiffout_open_tonemap( outfile );
 }
 
 static void tiffout_flush( struct tiffout *a );
 
 /**
- * Записывает #zl пустых строк тайлов в указанное изображение
- * #tiffout.
+ * Записывает #zl строк тайлов в указанное изображение
+ * #tiffout. Если #zl > 1, то дополнительно записываются пустые
+ * строки.
  */
 static void
-_tiffout_write_empty_lines( struct tiffout *a, unsigned int zl )
+_tiffout_write_tile_lines( struct tiffout *a, unsigned int zl )
 {
-	tiffout_flush( a );
-	memset( a->buf, 0, a->bufsize );
-	
-	while ( zl ) {
-		a->written = 0;
+	if ( zl ) {
 		tiffout_flush( a );
+		memset( a->buf, 0, a->bufsize );
 		zl--;
+	
+		while ( zl ) {
+			a->written = 0;
+			tiffout_flush( a );
+			zl--;
+		}
 	}
 }
 
 /**
- * Записывает #zl пустых строк тайлов в изображение #ctx.
- * Является обёрткой вокруг _tiffout_write_empty_lines().
+ * Записывает #zl строк тайлов в изображение #ctx.
+ * Является обёрткой вокруг _tiffout_write_tile_lines().
  */
 void
-tiffout_write_empty_lines( void *ctx, unsigned int zl )
+tiffout_write_tile_lines( void *ctx, unsigned int zl )
 {
-	_tiffout_write_empty_lines( (struct tiffout *) ctx, zl );
+	_tiffout_write_tile_lines( (struct tiffout *) ctx, zl );
 }
 
 static void _tiffout_write_tile( struct tiffout *a,
@@ -328,10 +331,12 @@ new_tiffout( const char *outfile, int bitmap ) {
 			free( a );
 			a = NULL;
 		} else {
+			memset( a->buf, 0, a->bufsize );
 			a->tif = TIFFOpen( outfile, "w" );
 			if ( a->tif == NULL ) {
 				fprintf( stderr, "Unable to create TIFF file %s\n",
 						 outfile );
+				_TIFFfree( a->buf );
 				free( a );
 				a = NULL;
 			}
@@ -347,7 +352,10 @@ new_tiffout( const char *outfile, int bitmap ) {
  */
 static void
 destroy_tiffout( struct tiffout *tiffout_p ) {
-	if ( tiffout_p != NULL ) {
+	if ( tiffout_p ) {
+		if ( tiffout_p->buf ) {
+			_TIFFfree( tiffout_p->buf );
+		}
 		free( tiffout_p );
 	}
 }
@@ -361,10 +369,12 @@ tiffout_flush( struct tiffout *a )
 
 	if ( !a->written ) {
 		for ( y = 0; y < (a->is_bitmap ? TILEHEIGHT : 1); y++ ) {
-			TIFFWriteScanline( a->tif, a->buf, a->y, 0);
+			TIFFWriteScanline( a->tif, a->buf + y * a->buflinesize,
+							   a->y, 0);
 			a->y = a->y + 1;
 		}
 		a->written = 1;
+		a->tile_x = 0;
 	}
 }
 

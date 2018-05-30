@@ -224,7 +224,7 @@ main (int argc, char **argv)
 		   */
 		  filter_writer_p->write_toneline( filter_writer_ctx[c],
 										   buf + c - c0, ss,
-										   width, y == (height - 1) );
+										   width );
   }
 
   /* Запись завершающей части PostScript-кода. */

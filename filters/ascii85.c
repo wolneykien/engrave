@@ -50,8 +50,8 @@ void ascii85_write_empty_lines( void *ctx, unsigned int zl );
 void ascii85_write_spaces( void *ctx, unsigned int z );
 void ascii85_write_tile( void *ctx, unsigned char tile_index,
 						 unsigned char tile_area );
-void ascii85_write_toneline( void *ctx, char *buf, size_t ss,
-								 size_t count, int flush );
+void ascii85_write_toneline( void *ctx, const char *buf,
+							 size_t ss, size_t count );
 void ascii85_close( void *ctx );
 
 /**
@@ -233,18 +233,14 @@ ascii85_write_tile( void *ctx, unsigned char tile_index,
 						 tile_area );
 }
 
-static void ascii85_flush( struct ascii85 *a );
-
 /**
  * Выводит строку тонового изображения в виде строки символов ASCII base 85.
  * Структура #a определяет параметры кодирования и выходной поток. Строка из
- * #count отсчётов по #ss байт передаётся в буфере #buf. Если указан признак
- * сброса #flush, то содержимое буфера коировщика сбрасывается в выходной
- * поток.
+ * #count отсчётов по #ss байт передаётся в буфере #buf.
  */
 static void
-_ascii85_write_toneline( struct ascii85 *a, char *buf, size_t ss,
-						size_t count, int flush )
+_ascii85_write_toneline( struct ascii85 *a, const char *buf,
+						 size_t ss, size_t count )
 {
 
 	int x;
@@ -256,13 +252,6 @@ _ascii85_write_toneline( struct ascii85 *a, char *buf, size_t ss,
 	/* Последовательная передача отсчётов для кодирования. */
 	for (x = 0; x < ss*count; x += ss)
 		ascii85_encode(a, buf[x]);
-	
-	/* Если признак сброса установлен, сбросить буфер кодировщика в
-	 * выходной поток.
-	 */
-	if (flush)
-		ascii85_flush(a);
-
 }
 
 /**
@@ -270,11 +259,11 @@ _ascii85_write_toneline( struct ascii85 *a, char *buf, size_t ss,
  * ASCII base 85. Является обёрткой над _ascii85_write_toneline().
  */
 void
-ascii85_write_toneline( void *ctx, char *buf, size_t ss,
-						size_t count, int flush )
+ascii85_write_toneline( void *ctx, const char *buf, size_t ss,
+						size_t count )
 {
 	_ascii85_write_toneline( (struct ascii85 *) ctx,
-							 buf, ss, count, flush );
+							 buf, ss, count );
 }
 
 static void destroy_ascii85( struct ascii85 *ascii85_p );
@@ -287,12 +276,14 @@ static void
 _ascii85_close( struct ascii85 *ascii85_p )
 {
 	if ( ascii85_p->is_tilemap ) {
-		/* Сброс буферов кодировщиков. */
+		/* Запись концевой последовательности */
 		ascii85_encode( ascii85_p, 0xFF );
 		ascii85_encode( ascii85_p, 0xFF );
 		ascii85_encode( ascii85_p, 0xFF );
-		ascii85_flush( ascii85_p );
 	}
+
+	/* Сброс буферов кодировщика. */
+	ascii85_flush( ascii85_p );
 	
 	/* Вывод завершающей части. */
 	write_footer( ascii85_p->file );

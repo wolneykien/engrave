@@ -44,6 +44,7 @@
 #include "tiffout.h"
 #include <tiff.h>
 #include <tiffio.h>
+#include "weightfunc.h"
 
 void * tiffout_open_bitmap( const char *outfile, int mask );
 void * tiffout_open_tonemap( const char *outfile );
@@ -51,8 +52,8 @@ void tiffout_write_empty_lines( void *ctx, unsigned int zl );
 void tiffout_write_spaces( void *ctx, unsigned int z );
 void tiffout_write_tile( void *ctx, unsigned char tile_index,
 						 unsigned char tile_area );
-void tiffout_write_toneline( void *ctx, char *buf, size_t ss,
-								 size_t count, int flush );
+void tiffout_write_toneline( void *ctx, const char *buf,
+							 size_t ss, size_t count );
 void tiffout_close( void *ctx );
 
 /**
@@ -73,17 +74,17 @@ struct filter_writer tiffout_filter_writer = {
  */
 struct tiffout {
 	TIFF *tif;
+	unsigned char *buf;
+	size_t buflinesize;
+	size_t bufsize;
+	int y;
+	int written;
+	int tile_x;
 	int is_bitmap;
 };
 
-/* Ширина тайла в пикселях. */
-#define TILEWIDTH 6
 
-/* Высота тайла в пикселях. */
-#define TILEHEIGHT 6
-
-
-static struct tiffout *new_tiffout(const char *outfile);
+static struct tiffout *new_tiffout(const char *outfile, int bitmap);
 static void write_bitmap_header(struct tiffout *tiffout_p, int mask);
 
 /**
@@ -94,9 +95,8 @@ static void write_bitmap_header(struct tiffout *tiffout_p, int mask);
 struct tiffout *
 _tiffout_open_bitmap( const char *outfile, int mask )
 {
-	struct tiffout * ctx = new_tiffout( outfile );
-	if ( ctx ) {
-		ctx->is_bitmap = 1;
+	struct tiffout * ctx = new_tiffout( outfile, 1 );
+	if ( ctx ) {		
 		write_bitmap_header( ctx, mask );
 	}
 	
@@ -113,6 +113,7 @@ _tiffout_open_bitmap( const char *outfile, int mask )
 void *
 tiffout_open_bitmap( const char *outfile, int mask )
 {
+	weightfuncs_init();
 	return (void *) _tiffout_open_bitmap( outfile, mask );
 }
 
@@ -126,7 +127,7 @@ static void write_tonemap_header( struct tiffout *tiffout_p );
 struct tiffout *
 _tiffout_open_tonemap( const char *outfile )
 {
-	struct tiffout * ctx = new_tiffout( outfile );
+	struct tiffout * ctx = new_tiffout( outfile, 0 );
 	if ( ctx )
 		write_tonemap_header( ctx );
 	
@@ -142,21 +143,26 @@ _tiffout_open_tonemap( const char *outfile )
 void *
 tiffout_open_tonemap( const char *outfile )
 {
+	weightfuncs_init();
 	return (void *) _tiffout_open_tonemap( outfile );
 }
 
-
-static void tiffout_encode(struct tiffout *a, const unsigned char code);
+static void tiffout_flush( struct tiffout *a );
 
 /**
  * Записывает #zl пустых строк тайлов в указанное изображение
  * #tiffout.
  */
 static void
-_tiffout_write_empty_lines( struct tiffout *tiffout_p, unsigned int zl )
+_tiffout_write_empty_lines( struct tiffout *a, unsigned int zl )
 {
-	if (zl) {
-		// TODO
+	tiffout_flush( a );
+	memset( a->buf, 0, a->bufsize );
+	
+	while ( zl ) {
+		a->written = 0;
+		tiffout_flush( a );
+		zl--;
 	}
 }
 
@@ -175,10 +181,11 @@ tiffout_write_empty_lines( void *ctx, unsigned int zl )
  * #tiffout.
  */
 static void
-_tiffout_write_spaces( struct tiffout *tiffout_p, unsigned int z )
+_tiffout_write_spaces( struct tiffout *a, unsigned int z )
 {
-	if (z) {
-		// TODO
+	while ( z ) {
+		_tiffout_write_tile( a, 0, 0 );
+		z--;
 	}
 }
 
@@ -192,16 +199,24 @@ tiffout_write_spaces( void *ctx, unsigned int z )
 	_tiffout_write_spaces( (struct tiffout *) ctx, z );
 }
 
+static void get_tile_bytemap( unsigned char *tilebuf,
+							  unsigned char tile_index,
+							  unsigned char tile_area );
+static void tiffout_encode_tile( struct tiffout *a,
+								 unsigned char *tilebuf );
+
 /**
  * Формирует тайл с номером #tile_index и относительной
  * площадью #tile_area в указанном изображении #tiffout.
  */
 static void
-_tiffout_write_tile( struct tiffout *tiffout_p,
+_tiffout_write_tile( struct tiffout *a,
 					 unsigned char tile_index,
 					 unsigned char tile_area )
 {
-	//TODO
+	static unsigned char tilebuf[WEIGHTFUNC_LEN];
+	get_tile_bytemap( tilebuf, tile_index, tile_area );
+	tiffout_encode_tile( a, tilebuf );
 }
 
 /**
@@ -217,26 +232,21 @@ tiffout_write_tile( void *ctx, unsigned char tile_index,
 						 tile_area );
 }
 
-static void tiffout_flush( struct tiffout *a );
-
 /**
- * Выводит строку тонового изображения в указанный файл #tiffout. Строка из
- * #count отсчётов по #ss байт передаётся в буфере #buf. Если указан признак
- * сброса #flush, то содержимое буфера коировщика сбрасывается в выходной
- * поток.
+ * Выводит строку тонового изображения в указанный файл #tiffout.
+ *Строка из #count отсчётов по #ss байт передаётся в буфере #buf.
  */
 static void
-_tiffout_write_toneline( struct tiffout *a, char *buf, size_t ss,
-						size_t count, int flush )
+_tiffout_write_toneline( struct tiffout *a, const char *buf,
+						 size_t ss, size_t count )
 {
-	//TODO
-	
-	/* Если признак сброса установлен, сбросить буфер кодировщика в
-	 * выходной поток.
-	 */
-	if (flush)
-		tiffout_flush(a);
-
+	if ( ss != 1 && count != width ) {
+		fprintf( stderr, "Error: Wrong tone line: %d x %d\n",
+				 ss, count );
+		return;
+	}
+	TIFFWriteScanline( a->tif, buf, a->y, 0);
+	a->y = a->y + 1;
 }
 
 /**
@@ -244,11 +254,11 @@ _tiffout_write_toneline( struct tiffout *a, char *buf, size_t ss,
  * Является обёрткой над _tiffout_write_toneline().
  */
 void
-tiffout_write_toneline( void *ctx, char *buf, size_t ss,
-						size_t count, int flush )
+tiffout_write_toneline( void *ctx, const char *buf, size_t ss,
+						size_t count )
 {
 	_tiffout_write_toneline( (struct tiffout *) ctx,
-							 buf, ss, count, flush );
+							 buf, ss, count );
 }
 
 static void destroy_tiffout( struct tiffout *tiffout_p );
@@ -259,10 +269,8 @@ static void destroy_tiffout( struct tiffout *tiffout_p );
 static void
 _tiffout_close( struct tiffout *tiffout_p )
 {
-	if ( tiffout_p->is_bitmap ) {
-		/* Сброс буферов кодировщиков. */
-		tiffout_flush( tiffout_p );
-	}
+	/* Сброс буферов кодировщиков. */
+	tiffout_flush( tiffout_p );
 	
 	/* Закрытие файла. */
 	TIFFClose( tiffout_p->tif );
@@ -291,21 +299,41 @@ tiffout_close( void *ctx )
  * Структура связыает TIFF c указанным #outfile.
  */
 static struct tiffout *
-new_tiffout( const char *outfile ) {
+new_tiffout( const char *outfile, int bitmap ) {
 
 	struct tiffout *a;
 
-	a = (struct tiffout *) malloc(sizeof(struct tiffout));
+	a = (struct tiffout *) malloc( sizeof(struct tiffout) );
+	
 	if (a != NULL) {
-		a->is_bitmap = 0;
-		a->tif = TIFFOpen( outfile, "w" );
-		if ( a->tif == NULL ) {
-			fprintf( stderr, "Unable to create TIFF file %s\n",
-					 outfile );
+		a->y = 0;
+		a->written = 1;
+		a->tile_x = 0;
+		a->is_bitmap = bitmap;
+		if ( bitmap ) {
+			a->buflinesize = (width * TILEWIDTH) / 8;
+			a->buflinesize += ((width * TILEWIDTH) % 8) ? 1 : 0;
+			a->bufsize = a->buflinesize * TILEHEIGHT;
+		} else {
+			a->buflinesize = width;
+			a->bufsize = a->buflinesize;
+		}
+		a->buf = _TIFFmalloc( a->bufsize );
+		if ( !a->buf ) {
+			fprintf( stderr, "Unable to create allocate memory\n" );
 			free( a );
 			a = NULL;
+		} else {
+			a->tif = TIFFOpen( outfile, "w" );
+			if ( a->tif == NULL ) {
+				fprintf( stderr, "Unable to create TIFF file %s\n",
+						 outfile );
+				free( a );
+				a = NULL;
+			}
 		}
 	}
+	
 	return a;
 }
 
@@ -320,12 +348,20 @@ destroy_tiffout( struct tiffout *tiffout_p ) {
 	}
 }
 
-/* Сброс буфера символов в выходной поток. Используется для принудительного
- * вывода неполной строки символов после окончания процесса кодирования.
+/* Запись в TIFF ещё не записанных строк.
  */
 static void
-tiffout_flush( struct tiffout *a ) {
-	TIFFFlush( a->tif );
+tiffout_flush( struct tiffout *a )
+{
+	int y;
+
+	if ( !a->written ) {
+		for ( y = 0; y < (a->is_bitmap ? TILEHEIGHT : 1); y++ ) {
+			TIFFWriteScanline( a->tif, a->buf, a->y, 0);
+			a->y = a->y + 1;
+		}
+		a->written = 1;
+	}
 }
 
 /**
@@ -378,4 +414,48 @@ write_tonemap_header( struct tiffout *tiffout_p )
 				               PHOTOMETRIC_MINISBLACK );
 	TIFFSetField( tiffout_p->tif, TIFFTAG_RESOLUTIONUNIT,
 				  RESUNIT_INCH );
+}
+
+
+static void get_tile_bytemap( unsigned char *tilebuf,
+							  unsigned char tile_index,
+							  unsigned char tile_area )
+{
+	weight_func_apply( tilebuf, tile_index, tile_area );
+}
+
+static void tiffout_encode_tile( struct tiffout *a,
+								 unsigned char *tilebuf )
+{
+	int i, j;
+	unsigned char *p;
+
+	if ( a->tile_x >= width ) {
+		fprintf( stderr, "Error: tile X too big: %d\n", a->tile_x );
+		return;
+	}
+	
+	int byte_offs = (a->tile_x * TILEWIDTH) / 8;
+	int bit_offs = (a->tile_x * TILEWIDTH) % 8;
+
+	for ( j = 0; j < TILEHEIGHT; j++ ) {
+		p = a->buf + (a->buflinesize * j) + byte_offs;
+		int _bit_offs = bit_offs;
+		for ( i = 0; i < TILEWIDTH; i++ ) {
+			int shift = 7 - i - _bit_offs;
+			if ( shift < 0 ) {
+				p++;
+				_bit_offs -= 8;
+				shift = 8 + shift;
+			}
+			if ( tilebuf[ j * TILEWIDTH + i ] ) {
+				*p |= 1 << shift;
+			} else {
+				*p &= ~(1 << shift);
+			}
+		}
+	}
+
+	a->tile_x = a->tile_x + 1;
+	a->written = 0;
 }

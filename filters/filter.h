@@ -115,12 +115,10 @@ struct filter_writer {
 
 	/**
 	 * Выводит строку тонового изображения. Строка из #count отсчётов
-	 * по #ss байт передаётся в буфере #buf. Если указан признак
-	 * сброса #flush, то содержимое буфера коировщика сбрасывается
-	 * в выходной поток.
+	 * по #ss байт передаётся в буфере #buf.
 	 */
-	void  (*write_toneline)     ( void *ctx, char *buf, size_t ss,
-								  size_t count, int flush );
+	void  (*write_toneline)     ( void *ctx, const char *buf,
+								  size_t ss, size_t count );
 
 	/**
 	 * Закрывает кодировщик и освобождает ресурсы.

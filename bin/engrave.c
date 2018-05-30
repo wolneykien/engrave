@@ -117,6 +117,10 @@ int want_preview;	/* Признак записи уменьшенной копии. */
 /* Признак тестового режима. */
 int want_test_run = 0;
 
+/* Формат */
+typedef enum { EPS_FMT, TIFF_FMT } outformat_t;
+outformat_t outformat = EPS_FMT;
+
 /* Задание списка параметров коммандной строки */
 static struct option const long_options[] =
 {
@@ -140,6 +144,7 @@ static struct option const long_options[] =
 	{"output-suffix", required_argument, NULL, 'O'},
 	{"preview", no_argument, NULL, 'p'},
 	{"test-run", no_argument, NULL, 'T'},
+	{"format", required_argument, NULL, 't'},
 	{NULL, 0, NULL, 0}
 };
 
@@ -223,7 +228,7 @@ usage (int status)
   printf (_("%s - \
 engrave - Adaptive screening of CT images\n\
 \n\
-Copyright (C) 2015 Yuri V. Kuznetsov, Paul A. Wolneykien.\n\
+Copyright (C) 2018 Yuri V. Kuznetsov, Paul A. Wolneykien.\n\
 \n\
 This program is free software: you can redistribute it and/or modify\n\
 it under the terms of the GNU Affero General Public License as\n\
@@ -232,7 +237,7 @@ License, or (at your option) any later version.\n\
 See http://www.gnu.org/licenses/ for details.\n\n"), program_name);
   printf (_("Usage: %s [OPTIONS] -f FILTER [option] [-f FILTER [option]...] [FILE]\n"), \
 	  program_name);
-  printf (_("\
+  printf (_("\n\
 Options:\n\
   -r, --raw			process RAW image stream\n\
   -w WIDTH, --width=WIDTH	RAW image width\n\
@@ -253,9 +258,12 @@ Options:\n\
   -O SUF, --output-suffix=SUF	write output file to <NAME>.SUF \n\
                                 (default 'eps')\n\
   -p, --preview			add preview image to the EPS\n\
+  -T, --test-run        keep temporary files\n\
+  -t FMT, --format=FMT  output format (eps, tiff)\n\
   -H, --help			display this help and exit\n\
   -v, --verbose			verbose message output\n\
   -V, --version			output version information and exit\n\
+\n\
 Filter chain:\n\
   -f FILTER [options], \n\
   --filter=FILTER [options]     process image through FILTER [filter\n\
@@ -346,6 +354,8 @@ decode_switches (int argc, char **argv)
   write_to_file = 1;
   output_name[0] = '\0';
   want_preview = 0;
+  want_test_run = 0;
+  outformat = EPS_FMT;
 
   /* Перебор параметров коммандной строки с помощью функции getopt_long. */
   while ((c = getopt_long (argc, argv, 
@@ -367,7 +377,8 @@ decode_switches (int argc, char **argv)
 			   "o::" /* output to file */
 			   "O:" /* output suffix */
 			   "p"  /* add preview */
-			   "T", /* test run */
+			   "T"  /* test run */
+			   "t:", /* output format */
 			   long_options, &option_index)) != EOF)
     {
       switch (c) /* Анализ буквенного кода параметра. */
@@ -522,9 +533,26 @@ decode_switches (int argc, char **argv)
 	case 'f':
 		return decode_filter_switches(argc, argv);
 
+	/*
+	 * Тестовый прогон (не удалять временные файлы).
+	 */
 	case 'T':
 	  want_test_run = 1;
 	  break;
+
+	case 't':
+	  if ( 0 == strcmp( optarg, "eps" ) ||
+	  	   0 == strcmp( optarg, "EPS" ) )
+	  	{
+	  		outformat = EPS_FMT;
+			break;
+	  	}
+	  if ( 0 == strcmp( optarg, "tiff" ) ||
+	  	   0 == strcmp( optarg, "TIFF" ) )
+	  	{
+	  		outformat = TIFF_FMT;
+			break;
+	  	}
 
 	/* Если аргумент не был распознан, он признаётся ошибочным,
 	 * выводится краткая справка и производится выход

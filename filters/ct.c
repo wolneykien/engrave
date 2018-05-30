@@ -46,7 +46,6 @@
 #include <sys/types.h>
 #include "system.h"
 #include "filter.h"
-#include "ascii85.h"
 #include "misc.h"
 
 /* Код возврата, означающий ошибочное завершение программы. */
@@ -86,7 +85,7 @@ main (int argc, char **argv)
   const char *filenames[4] = { NULL, NULL, NULL, NULL };
 
   /* Набор функций кодировщика тайлов. */
-  struct filter_writer *filter_writer_p = &ascii85_filter_writer;
+  struct filter_writer *filter_writer_p = get_selected_filter_writer();
   
   /* Набор из 4 структур для хранения информации при кодировании цифровых
    * изображений в символьное представление.

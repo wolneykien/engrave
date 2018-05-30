@@ -44,6 +44,9 @@
 #include "filter.h"
 #include "misc.h"
 
+#include "ascii85.h"
+#include "tiffout.h"
+
 /* Имя инициированной комманды. */
 char *program_name;
 
@@ -425,4 +428,25 @@ write_outbuf(char *outbuf, size_t ss, size_t len) {
 		exit(EXIT_FAILURE);
 	}
 
+}
+
+/**
+ * Возвращает указатель на выбранный кодировщик.
+ * Должна вызываться после разбора опций.
+ */
+struct filter_writer *
+get_selected_filter_writer ()
+{
+	switch ( filter_outformat ) {
+	case FILTER_EPS_FMT:
+		return &ascii85_filter_writer;
+		break;
+	case FILTER_TIFF_FMT:
+		return &tiffout_filter_writer;
+	  break;
+	default:
+		fprintf( stderr, "BUG: Unexpected filter format: %d\n",
+				 filter_outformat );
+		exit(EXIT_FAILURE);
+	}
 }

@@ -48,7 +48,6 @@
 
 #include "system.h"
 #include "filter.h"
-#include "ascii85.h"
 #include "tile32f.h"
 #include "misc.h"
 
@@ -437,7 +436,7 @@ main (int argc, char **argv)
   FILE *histf = NULL;
 
   /* Набор функций кодировщика тайлов. */
-  struct filter_writer *filter_writer_p = &ascii85_filter_writer;
+  struct filter_writer *filter_writer_p = get_selected_filter_writer();
 
   /* Имена файлов для записи позитивных штриховых изображений. */
   const char *pos_filenames[4] = { NULL, NULL, NULL, NULL };

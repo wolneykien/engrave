@@ -138,5 +138,10 @@ int decode_switches (int argc, char **argv, int error_code, \
 
 void write_outbuf(char *outbuf, size_t ss, size_t len);
 
+/**
+ * Возвращает указатель на выбранный кодировщик.
+ * Должна вызываться после разбора опций.
+ */
+struct filter_writer *get_selected_filter_writer ();
 
 #endif /* __FILTER_H */

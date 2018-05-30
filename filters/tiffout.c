@@ -386,8 +386,7 @@ write_bitmap_header( struct tiffout *tiffout_p, int mask ) {
 	TIFFSetField( tiffout_p->tif, TIFFTAG_YRESOLUTION,
 				  vres * TILEHEIGHT );
 	TIFFSetField( tiffout_p->tif, TIFFTAG_PHOTOMETRIC,
-				  mask ? PHOTOMETRIC_MINISBLACK :
-				         PHOTOMETRIC_MINISWHITE );
+				  PHOTOMETRIC_MINISWHITE );
 	TIFFSetField( tiffout_p->tif, TIFFTAG_RESOLUTIONUNIT,
 				  RESUNIT_INCH );
 }

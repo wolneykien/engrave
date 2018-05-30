@@ -151,7 +151,7 @@ static struct option const long_options[] =
 /* Функция для включения содержимого указанного файла в выходной файл.
  * Опционально, файл может быть удалён. */
 static void
-dump_file( FILE *out, const char *fn, int unlnk )
+dump_file( FILE *out, const char *fn )
 {
 	FILE *f = NULL;
 	static char str[MAXLINE];
@@ -179,9 +179,6 @@ dump_file( FILE *out, const char *fn, int unlnk )
 
 		/* Закрытие файла */
 		fclose(f);
-		/* Удаление файла если выставлен признак удаления */
-		if (unlnk)
-			unlink(fn);
 	}
 
 	/* Указываем, что аварийной ситуации не произошло: */
@@ -1161,7 +1158,7 @@ ps_header(const char *file_name, FILE *output_file)
     pathcat(ps_path, filter_name);
 
     /* Копирование библиотечного PostScript файла в выходной поток. */
-    dump_file(output_file, strcat(ps_path, ".ps"), 0);
+    dump_file(output_file, strcat(ps_path, ".ps"));
 
     /* Повторение операций со следующим фильтром. */
     a_filter = strtok_r(NULL, "\n", &saveptr);
@@ -1236,10 +1233,16 @@ delete_temporary_filter_file( const char *fsuf, pid_t pid,
 		fprintf(stderr, "Unable to get the name of a filter "	\
 				"temporary file\n");
 	} else {
-		if ( !unlink(tmp_fn) ) {
-			fprintf(stderr, "Unable to delete temporary file\n");
-		} else if ( want_verbose ) {
-			fprintf(stderr, "Delete temporary file %s\n", tmp_fn);
+		if ( !want_test_run ) {
+			if ( !unlink(tmp_fn) ) {
+				fprintf(stderr, "Unable to delete temporary file\n");
+			} else if ( want_verbose ) {
+				fprintf(stderr, "Delete temporary file %s\n", tmp_fn);
+			}
+		} else {
+			fprintf(stderr,
+					"Test run: temporary file %s not deleted.\n",
+					tmp_fn);
 		}
 		free( tmp_fn ); tmp_fn = NULL;
 	}
@@ -1247,7 +1250,7 @@ delete_temporary_filter_file( const char *fsuf, pid_t pid,
 
 static void
 dump_temporary_filter_file( FILE *out, const char *fsuf, pid_t pid,
-							int fidx, int color_idx, int unlnk )
+							int fidx, int color_idx )
 {
 	const char *tmp_fn = NULL;
 	
@@ -1256,7 +1259,7 @@ dump_temporary_filter_file( FILE *out, const char *fsuf, pid_t pid,
 		fprintf(stderr, "Unable to get the name of a filter "	\
 				"temporary file\n");
 	} else {
-		dump_file( out, tmp_fn, unlink);
+		dump_file( out, tmp_fn );
 		free( tmp_fn ); tmp_fn = NULL;
 	}
 }
@@ -1592,15 +1595,15 @@ process (char *file_name)
 	  fprintf(output_file, "%% Painting CT images\n");
 	  /* Включение тонового изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
-		  dump_temporary_filter_file( output_file, "ct", pid, i, c, 1 );
+		  dump_temporary_filter_file( output_file, "ct", pid, i, c );
 	  fprintf(output_file, "%% Painting mask images\n");
 	  /* Включение маскирующего изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
-		  dump_temporary_filter_file( output_file, "m", pid, i, c, 1 );
+		  dump_temporary_filter_file( output_file, "m", pid, i, c );
 	  fprintf(output_file, "%% Painting stroke images\n");
 	  /* Включение рисующего изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
-		  dump_temporary_filter_file( output_file, "s", pid, i, c, 1 );
+		  dump_temporary_filter_file( output_file, "s", pid, i, c );
 	}
   }
 

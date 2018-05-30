@@ -66,6 +66,9 @@ float vres;			/* разрешение по вертикали; */
 int is_cmyk;			/* признак 4-красочного изображения; */
 int miniswhite;			/* признак негативного изображения. */
 
+/* Выходной формат */
+filter_outformat_t filter_outformat = FILTER_EPS_FMT;
+
 /* Определение базовых параметров командной строки для всех фильтров. */
 static struct option const base_long_options[] =
 {
@@ -81,6 +84,7 @@ static struct option const base_long_options[] =
 	{"density", no_argument, NULL, 'D'},
 	{"intensity", no_argument, NULL, 'I'},
 	{"verbose", no_argument, NULL, 'v'},
+	{"format", required_argument, NULL, 't'},
 	{NULL, 0, NULL, 0}
 };
 
@@ -203,6 +207,7 @@ decode_switches (int argc, char **argv, int error_code,
   pid = 0;
   fidx = 0;
   want_verbose = 0;
+  filter_outformat = FILTER_EPS_FMT;
 
   /* Подсчёт количества базовых аргументов. */
   base_options_count = options_count(base_long_options);
@@ -241,7 +246,8 @@ decode_switches (int argc, char **argv, int error_code,
 		"I"	/* признак передачи яркостных значений; */
 		"H"	/* вывод краткой справки; */
 		"v"	/* режим повышенной информативности; */
-		"V",	/* вывод информации о версии. */
+		"V"	/* вывод информации о версии. */
+	    "t:", /* output format */
 		all_options, &option_index)) >= 0)
     {
       /* Иентификация параметра по ключу. */
@@ -371,6 +377,20 @@ decode_switches (int argc, char **argv, int error_code,
 			*option_vars[option_index - base_options_count] = optarg;
 	  }
 	  break;
+
+	case 't':
+	  if ( 0 == strcmp( optarg, "eps" ) ||
+	  	   0 == strcmp( optarg, "EPS" ) )
+	  	{
+	  		filter_outformat = FILTER_EPS_FMT;
+			break;
+	  	}
+	  if ( 0 == strcmp( optarg, "tiff" ) ||
+	  	   0 == strcmp( optarg, "TIFF" ) )
+	  	{
+	  		filter_outformat = FILTER_TIFF_FMT;
+			break;
+	  	}
 
 	/* Если ключ параметра не был идентифицирован, то производится вывод
 	 * краткой справки и завершение работы с признаком ошибки.

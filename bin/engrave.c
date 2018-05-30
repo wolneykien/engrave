@@ -1027,11 +1027,28 @@ parse_filters(char *f_cmd, int *filter_count, pid_t pid)
   char f_path[MAXLINE];
   char f_args[MAXLINE];
 
+  char *outformat_str = NULL;
+
+  /* Преобразование выбранного формата в строковое
+     представление. */
+  switch ( outformat ) {
+  case EPS_FMT:
+	  outformat_str = "eps";
+	  break;
+  case TIFF_FMT:
+	  outformat_str = "tiff";
+	  break;
+  default:
+	  fprintf( stderr, "BUG: Unexpected output format: %d\n",
+			   outformat );
+	  exit(EXIT_FAILURE);
+  }
+
   /* Формирование коммандной строки для вызова фильтров. */
   /* Задание общих для всех фильтров аргументов, определяющих
    * параметры обрабатываемого изображения межпроцессорной
    * коммуникации. */
-  snprintf(f_args, sizeof(f_args), " -p %u -w %u -h %u -x %.2f -y %.2f", pid, width, height, hres, vres);
+  snprintf(f_args, sizeof(f_args), " -p %u -w %u -h %u -x %.2f -y %.2f -t %s", pid, width, height, hres, vres, outformat_str);
   
   /* Добавление признака 4 красочного изображения. */
   if (is_cmyk)
@@ -1355,9 +1372,11 @@ process (char *file_name)
   /* Подготовка к обработке изображения. Открытие файлов.
    * Настройка коммуникационных каналов между процессами. */
 
-  /* Поготовка выходного файла. */
-  if (prepare_files(file_name, output_name, &output_file) > 0) {
-	exit(EXIT_FAILURE);
+  if ( outformat != TIFF_FMT ) {
+	  /* Поготовка выходного файла. */
+	  if (prepare_files(file_name, output_name, &output_file) > 0) {
+		  exit(EXIT_FAILURE);
+	  }
   }
 
   /* Печать имени и версии программы перед началом работы
@@ -1532,9 +1551,14 @@ process (char *file_name)
   if (want_verbose)
 	  fprintf(stderr, "100%\n");
 
-  /* Вывод заголовка PostScript-программы и библиотечных файлов. */
-  ps_header(file_name, output_file);
+  if ( NULL != output_file ) {
+	  if ( outformat == EPS_FMT ) {
+		  /* Вывод заголовка PostScript-программы и библиотечных файлов. */
+		  ps_header(file_name, output_file);
+	  }
+  }
 
+  if ( NULL != output_file ) {
   /* Обработка файлов, созданных в результате работы фильтров. */
 
   /* Фрагменты PostScript программы, созданные каждым из фильтров
@@ -1559,6 +1583,8 @@ process (char *file_name)
 	continue;
       }
     }
+
+	if ( outformat == EPS_FMT ) {
 	  fprintf(output_file, "%% Painting '%s' image color\n", get_cmykcolor_name(c));
 	  /* В программу записывается комманда для выбора режима
 	   * работы с одним красителем. */
@@ -1575,14 +1601,19 @@ process (char *file_name)
 	  /* Включение рисующего изображения от каждого из фильтров. */
 	  for (i = 0; i < filter_count; i++)
 		  dump_temporary_filter_file( output_file, "s", pid, i, c, 1 );
+	}
   }
 
-  /* Печать завершающей части PostScript программы. */
-  fprintf(output_file,
-  	 "end\n"
-	 "grestore\t%% Restore previous graphic state\n"
-	 "showpage\n"
-	 "%%%%EOF\n");
+  if ( outformat == EPS_FMT ) {
+	  /* Печать завершающей части PostScript программы. */
+	  fprintf(output_file,
+			  "end\n"
+			  "grestore\t%% Restore previous graphic state\n"
+			  "showpage\n"
+			  "%%%%EOF\n");
+  }
+  
+  } /* if ( NULL != output_file ) */
 
   /* Получение признака записи результата в стандартный выход. */
   to_stdout = output_file == stdout;
@@ -1592,9 +1623,11 @@ process (char *file_name)
 
   /* Если указан соответствующий признак, то производится добавление к
    * PostScript-файлу уменьшенной копии иображения в формате TIFF. */
-  if (want_preview && !to_stdout) {
-	/* Добавление уменьшенной копии к PostScript-файлу. */
-  	add_preview(output_name, thumbnail_name);
+  if (want_preview && !to_stdout && NULL != output_file ) {
+	  if ( outformat == EPS_FMT ) {
+		  /* Добавление уменьшенной копии к PostScript-файлу. */
+		  add_preview(output_name, thumbnail_name);
+	  }
   }
 
   return 0;

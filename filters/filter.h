@@ -66,6 +66,9 @@ extern float vres;			/* разрешение по вертикали; */
 extern int is_cmyk;			/* признак 4-красочного изображения; */
 extern int miniswhite;			/* признак негативного изображения. */
 
+typedef enum { FILTER_EPS_FMT, FILTER_TIFF_FMT } filter_outformat_t;
+extern filter_outformat_t filter_outformat;
+
 /* Тип функции, печатающей заголовок краткой справки. */
 typedef void(*usage_header_f)(FILE *out);
 

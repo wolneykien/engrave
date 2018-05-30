@@ -176,6 +176,10 @@ tiffout_write_empty_lines( void *ctx, unsigned int zl )
 	_tiffout_write_empty_lines( (struct tiffout *) ctx, zl );
 }
 
+static void _tiffout_write_tile( struct tiffout *a,
+								 unsigned char tile_index,
+								 unsigned char tile_area );
+
 /**
  * Записывает #z пустых тайлов в указанное изображение
  * #tiffout.

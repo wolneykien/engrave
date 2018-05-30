@@ -268,6 +268,7 @@ ascii85_write_toneline( void *ctx, const char *buf, size_t ss,
 
 static void destroy_ascii85( struct ascii85 *ascii85_p );
 static void write_footer( FILE *stream );
+static void ascii85_flush(struct ascii85 *a);
 
 /**
  * Закрывает указанный буфер ASCII-85.
@@ -321,7 +322,6 @@ new_ascii85( const char *outfile ) {
 	if (a != NULL) {
 		a->line_break = LINEWIDTH;
 		a->offset = 0;
-		a->file = outfile;
 		a->buffer[a->offset] = '\0';
 		a->is_tilemap = 0;
 		a->file = fopen( outfile, "w" );

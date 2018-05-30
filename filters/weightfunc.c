@@ -37,6 +37,8 @@
 
 /* Библиотека весовых функций. */
 
+#include <string.h>
+#include <stdio.h>
 #include "weightfunc.h"
 
 /**
@@ -147,7 +149,8 @@ const unsigned char diacorner[WEIGHTFUNC_LEN] = {
 unsigned char weightfuncs[WEIGHTFUNCS_COUNT][WEIGHTFUNC_LEN];
 
 
-static void copyweightfunc( unsigned char *dest, unsigned char *src,
+static void copyweightfunc( unsigned char *dest,
+							const unsigned char *src,
 							int rotation );
 
 /**
@@ -225,7 +228,7 @@ void weight_func_apply( unsigned char *tilebuf,
 }
 
 static void
-copyweightfunc( unsigned char *dest, unsigned char *src,
+copyweightfunc( unsigned char *dest, const unsigned char *src,
 				int rotation )
 {
 	int i, i0, j, j0;

@@ -85,7 +85,7 @@ main (int argc, char **argv)
   const char *filenames[4] = { NULL, NULL, NULL, NULL };
 
   /* Набор функций кодировщика тайлов. */
-  struct filter_writer *filter_writer_p = get_selected_filter_writer();
+  struct filter_writer *filter_writer_p = NULL;
   
   /* Набор из 4 структур для хранения информации при кодировании цифровых
    * изображений в символьное представление.
@@ -146,6 +146,9 @@ main (int argc, char **argv)
 
   /* Разбор аргуметов командной строки. */
   opt_r = decode_switches (argc, argv, EXIT_FAILURE, long_options, NULL, &usage_header, NULL);
+
+  /* Установка кодировщика. */
+  filter_writer_p = get_selected_filter_writer();
 
   /* Проверка наличия параметров изображения. */
   if (!width || !height || !hres || !vres) {

@@ -436,7 +436,7 @@ main (int argc, char **argv)
   FILE *histf = NULL;
 
   /* Набор функций кодировщика тайлов. */
-  struct filter_writer *filter_writer_p = get_selected_filter_writer();
+  struct filter_writer *filter_writer_p = NULL;
 
   /* Имена файлов для записи позитивных штриховых изображений. */
   const char *pos_filenames[4] = { NULL, NULL, NULL, NULL };
@@ -553,6 +553,9 @@ main (int argc, char **argv)
 
   /* Преобразование строковых значений параметров. */
   set_paramenetrs();
+
+  /* Установка кодировщика. */
+  filter_writer_p = get_selected_filter_writer();
 
   /* Проверка указания всех необходимых параметров изображения. */
   if (!width || !height || !hres || !vres) {

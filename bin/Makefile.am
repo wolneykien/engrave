@@ -6,13 +6,15 @@ else
   AM_CFLAGS = -DFILTERS=\"$(pkglibexecdir)\" -DPSLIB=\"$(pkgdatadir)\" -I ../share -I ../filters
 endif
 
-engrave_SOURCES = engrave.c aclocal.m4
+engrave_SOURCES = engrave.c
+EXTRA_engrave_SOURCES = pdfwriter.cc
+engrave_LDADD = -ltiff ../share/libmisc.a
+engrave_DEPENDENCIES = ../share/libmisc.a
 
 if WITH_PDFWRITER
-engrave_SOURCES += pdfwriter.cc
+engrave_LDADD += pdfwriter.$(OBJEXT) -lPDFWriter
+engrave_DEPENDENCIES += pdfwriter.$(OBJEXT)
 endif
-
-engrave_LDADD = -ltiff ../share/libmisc.a
 
 man1dir = $(mandir)/ru/man1
 man_MANS = engrave.1

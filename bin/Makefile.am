@@ -7,6 +7,11 @@ else
 endif
 
 engrave_SOURCES = engrave.c aclocal.m4
+
+if WITH_PDFWRITER
+engrave_SOURCES += pdfwriter.cc
+endif
+
 engrave_LDADD = -ltiff ../share/libmisc.a
 
 man1dir = $(mandir)/ru/man1

@@ -33,6 +33,9 @@ AC_HEADER_STDC
 AC_HEADER_MAJOR
 AC_CHECK_HEADERS([fcntl.h libintl.h locale.h memory.h stdlib.h string.h strings.h sys/file.h sys/param.h sys/time.h unistd.h utime.h tiff.h tiffio.h])
 
+AC_CHECK_HEADER ([PDFWriter/PDFWriter.h], [AC_DEFINE([WITH_PDFWRITER], [1])])
+#AM_CONDITIONAL([WITH_PDFWRITER],[test -n "$with_pdfwriter"])
+
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STAT
 AC_C_CONST

@@ -82,8 +82,10 @@ pdf_open_file( const char *filename, double width, double height )
 	ctx->width = width;
 	ctx->height = height;
 
+	cerr << "Open PDF file: " << filename << "\n";
 	status = pdfWriter.StartPDF( filename, ePDFVersion14 );
 	if ( status != eSuccess ) {
+		cerr << "Error: Unable to open PDF file\n";
 		delete ctx;
 		return NULL;
 	}
@@ -109,11 +111,13 @@ pdf_add_bitmap( void *_ctx, const char *tifffile, pdfcolor_t color )
 	TIFFUsageParameters params;
 	params.BWTreatment.AsImageMask = 1;
 	params.BWTreatment.OneColor = getColor( color );
+
+	cerr << "Add bitmap file: " << tifffile << " (" << color << ")\n";
 	
 	PDFFormXObject* image =
 		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
 	if ( !image ) return 1;
-	
+
 	int rv = placeImage( ctx, image );
 	delete image;
 
@@ -134,11 +138,13 @@ pdf_add_tonemap( void *_ctx, const char *tifffile, pdfcolor_t color )
 	params.GrayscaleTreatment.AsColorMap = true;
 	params.GrayscaleTreatment.OneColor = getColor( color );
 	params.GrayscaleTreatment.ZeroColor = getColor( PDFCOLOR_WHITE );
+
+	cerr << "Add tonemap file: " << tifffile << " (" << color << ")\n";
 	
 	PDFFormXObject* image =
 		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
 	if ( !image ) return 1;
-	
+
 	int rv = placeImage( ctx, image );
 	delete image;
 
@@ -154,12 +160,16 @@ pdf_close( void *_ctx )
 	PDFCtx *ctx = (PDFCtx *) _ctx;
 
 	if ( ctx ) {
-		if ( ctx->pageContentContext )
+		if ( ctx->pageContentContext ) {
+			cerr << "Close PDF page context\n";
 			pdfWriter.EndPageContentContext( ctx->pageContentContext );
-		
-		if ( ctx->pdfPage )
+		}
+		if ( ctx->pdfPage ) {
+			cerr << "Close PDF page\n";
 			pdfWriter.WritePageAndRelease( ctx->pdfPage );
-		
+		}
+
+		cerr << "Close PDF\n";
 		pdfWriter.EndPDF();
 	}
 
@@ -175,8 +185,15 @@ static int
 preparePage( PDFCtx *ctx )
 {
 	if ( !ctx->pdfPage ) {
+		cerr << "Add new page to the PDF\n";
 		ctx->pdfPage = new PDFPage();
-		if ( !ctx->pdfPage ) return 1;
+		if ( !ctx->pdfPage ) {
+			cerr << "Error: Unable to add the page\n";
+			return 1;
+		}
+		
+		cerr << "Set page media box to " << \
+			ctx->width << "x" << ctx->height << "\n";
 		ctx->pdfPage->SetMediaBox(
 		        PDFRectangle( 0, 0, ctx->width, ctx->height ) );
 	}
@@ -194,9 +211,13 @@ preparePageContext( PDFCtx *ctx )
 	if ( preparePage( ctx ) != 0 ) return 1;
 	
 	if ( !ctx->pageContentContext ) {
+		cerr << "Start new page context\n";
 		ctx->pageContentContext = 
 			pdfWriter.StartPageContentContext( ctx->pdfPage );
-		if ( !ctx->pageContentContext ) return 1;
+		if ( !ctx->pageContentContext ) {
+			cerr << "Error: Unable to start the page context\n";
+			return 1;
+		}
 	}
 
 	return 0;
@@ -229,12 +250,15 @@ static int
 placeImage( PDFCtx *ctx, PDFFormXObject* image )
 {
 	if ( preparePageContext( ctx ) != 0 ) return 1;
+
+	cerr << "Placing the image...\n";
+
+	string imageName =
+		ctx->pdfPage->GetResourcesDictionary().
+		      AddFormXObjectMapping( image->GetObjectID() );
 	
 	ctx->pageContentContext->q();
-	ctx->pageContentContext->Do(
-          ctx->pdfPage->GetResourcesDictionary().
-		      AddFormXObjectMapping(
-			      image->GetObjectID() ) );
+	ctx->pageContentContext->Do( imageName );
 	ctx->pageContentContext->Q();
 
 	return 0;

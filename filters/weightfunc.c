@@ -164,9 +164,9 @@ weightfuncs_init ()
 	if ( initialized ) return;
 	
 	copyweightfunc( weightfuncs[TILE_NL - 1],  ortline,     0   );
-	copyweightfunc( weightfuncs[TILE_WL - 1],  ortline,     90  );
+	copyweightfunc( weightfuncs[TILE_WL - 1],  ortline,    -90  );
 	copyweightfunc( weightfuncs[TILE_NWL - 1], dialine,     0   );
-	copyweightfunc( weightfuncs[TILE_NEL - 1], dialine,     90  );
+	copyweightfunc( weightfuncs[TILE_NEL - 1], dialine,    -90  );
 	copyweightfunc( weightfuncs[TILE_WS - 1],  ortcontour,  0   );
 	copyweightfunc( weightfuncs[TILE_NS - 1],  ortcontour, -90  );
 	copyweightfunc( weightfuncs[TILE_ES - 1],  ortcontour,  180 );

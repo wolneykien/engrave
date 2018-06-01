@@ -157,9 +157,11 @@ static void
 _tiffout_write_tile_lines( struct tiffout *a, unsigned int zl )
 {
 	if ( zl ) {
-		tiffout_flush( a );
+		if ( !a->written ) {
+			tiffout_flush( a );
+			zl--;
+		}
 		memset( a->buf, 0, a->bufsize );
-		zl--;
 	
 		while ( zl ) {
 			a->written = 0;

@@ -139,7 +139,8 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf,
 			   struct filter_writer *filter_writer_p,
 			   void *pos_filter_writer,
 			   void *neg_filter_writer,
-			   struct maketiles_info *mi) {
+			   struct maketiles_info *mi)
+{
 
 	/* Окно отсчётов. */
 	t_window window;
@@ -236,7 +237,7 @@ void maketiles(unsigned char *buf[], unsigned char *outbuf,
 		outbuf += ss;
 
 		/* В случае, если был идентифицирован штриховой элемент,
-		 * производится запись информации о нём в PostScript-код.
+		 * он передаётся соответствующему кодировщику.
 		 */
 		if (tile_index) {
 			/* Обработка информации о тайле производится в
@@ -312,7 +313,7 @@ void
 usage_header (FILE *out)
 {
   fprintf (out, _("%s - \
-Image filter for 'engrave' package. Produces PostScript code for the stroke part of each image color channel reading a RAW CT image data from stdin\n"), program_name);
+Image filter for 'engrave' package. Produces binary images (PostScript or TIFF) for the stroke part of each image color channel reading a RAW CT image data from stdin\n"), program_name);
   
 }
 
@@ -500,7 +501,7 @@ main (int argc, char **argv)
   /* Функция очистки занятых ресурсов. Освобождение занятой памяти и удаление
    * временных файлов, если обработка завершилась неудачей. В противном случае,
    * временные файлы удаляет основная программа, после их включения в основной
-   * PostScript-файл.
+   * файл.
    */
   void cleanup() {
 	  int i;
@@ -762,12 +763,19 @@ main (int argc, char **argv)
   }
   
   /* Сброс буферов кодировщиков для каждого цветового канала в соответствующие
-   * выходные потоки. Вывод завершающих частей фрагментов PostScript-программы.
+   * выходные потоки. Вывод завершающих строк микроштриховых изображений.
    */
   for (c = c0; c <= cN; c++) {
 	  /* Сброс буферов. */
+	  if ( mi[c].pzl ) {
+		  filter_writer_p->write_tile_lines( pos_filter_writer[c], mi[c].pzl );
+	  }
 	  filter_writer_p->close( pos_filter_writer[c] );
 	  pos_filter_writer[c] = NULL;
+	  
+	  if ( mi[c].nzl ) {
+		  filter_writer_p->write_tile_lines( neg_filter_writer[c], mi[c].nzl );
+	  }
 	  filter_writer_p->close( neg_filter_writer[c] );
 	  neg_filter_writer[c] = NULL;
   }

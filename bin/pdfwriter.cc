@@ -51,6 +51,15 @@ using namespace std;
 using namespace PDFHummus;
 
 /**
+ * Связный список слоёв изображения.
+ */
+class ObjList {
+public:
+	string objId;
+	ObjList* next;
+};
+
+/**
  * Контекст для работы с PDF.
  */
 class PDFCtx {
@@ -59,6 +68,7 @@ public:
 	PageContentContext *pageContentContext;
 	double width;
 	double height;
+	ObjList *objlist;
 };
 
 PDFWriter pdfWriter;
@@ -81,6 +91,7 @@ pdf_open_file( const char *filename, double width, double height )
 	ctx->pageContentContext = NULL;
 	ctx->width = width;
 	ctx->height = height;
+	ctx->objlist = NULL;
 
 	cerr << "Open PDF file: " << filename << "\n";
 	status = pdfWriter.StartPDF( filename, ePDFVersion14 );
@@ -93,10 +104,8 @@ pdf_open_file( const char *filename, double width, double height )
 	return ctx;
 }
 
-static int preparePage( PDFCtx *ctx );
-static int preparePageContext( PDFCtx *ctx );
 static CMYKRGBColor getColor( pdfcolor_t color );
-static int placeImage( PDFCtx *ctx, PDFFormXObject* image );
+static int addImage( PDFCtx *ctx, PDFFormXObject* image );
 
 /**
  * Добавляет в PDF #ctx микроштрихофой слой из файла #tifffile.
@@ -118,7 +127,7 @@ pdf_add_bitmap( void *_ctx, const char *tifffile, pdfcolor_t color )
 		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
 	if ( !image ) return 1;
 
-	int rv = placeImage( ctx, image );
+	int rv = addImage( ctx, image );
 	delete image;
 
 	return rv;
@@ -145,11 +154,13 @@ pdf_add_tonemap( void *_ctx, const char *tifffile, pdfcolor_t color )
 		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
 	if ( !image ) return 1;
 
-	int rv = placeImage( ctx, image );
+	int rv = addImage( ctx, image );
 	delete image;
 
 	return rv;
 }
+
+static int placeImages( PDFCtx *ctx );
 
 /**
  * Закрывает контекст и записывает PDF файл.
@@ -160,6 +171,9 @@ pdf_close( void *_ctx )
 	PDFCtx *ctx = (PDFCtx *) _ctx;
 
 	if ( ctx ) {
+		if ( placeImages( ctx ) != 0 ) {
+			cerr << "Error placing images!\n";
+		}
 		if ( ctx->pageContentContext ) {
 			cerr << "Close PDF page context\n";
 			pdfWriter.EndPageContentContext( ctx->pageContentContext );
@@ -244,22 +258,54 @@ getColor( pdfcolor_t color )
 }
 
 /**
- * Помещает изображение на страницу.
+ * Добавляет изображение к документу.
  */
 static int
-placeImage( PDFCtx *ctx, PDFFormXObject* image )
+addImage( PDFCtx *ctx, PDFFormXObject* image )
+{
+	if ( preparePage( ctx ) != 0 ) return 1;
+
+	string imageId =
+		ctx->pdfPage->GetResourcesDictionary().
+		      AddFormXObjectMapping( image->GetObjectID() );
+
+	cerr << "Add the image " << imageId << " to the document\n";
+	
+	ObjList *objlist = ctx->objlist;
+	while ( objlist && objlist->next )
+		objlist = objlist->next;
+	ObjList *newObj = new ObjList();
+	newObj->objId = imageId; // TODO: constructor
+	newObj->next = NULL;
+	if ( objlist )
+		objlist->next = newObj;
+	else
+		ctx->objlist = newObj;
+}
+
+
+/**
+ * Помещает изображения на страницу.
+ */
+static int
+placeImages( PDFCtx *ctx )
 {
 	if ( preparePageContext( ctx ) != 0 ) return 1;
 
-	cerr << "Placing the image...\n";
-
-	string imageName =
-		ctx->pdfPage->GetResourcesDictionary().
-		      AddFormXObjectMapping( image->GetObjectID() );
+	cerr << "Place the images on the page:";
 	
 	ctx->pageContentContext->q();
-	ctx->pageContentContext->Do( imageName );
+	
+	ObjList *objlist = ctx->objlist;
+	while ( objlist ) {
+		cerr << " " << objlist->objId;
+		ctx->pageContentContext->Do( objlist->objId );
+		objlist = objlist->next;
+	}
+	
 	ctx->pageContentContext->Q();
+
+	cerr << "\n";
 
 	return 0;
 }

@@ -46,6 +46,8 @@
 #include <sys/types.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "system.h"
 #include <getopt.h>
@@ -1315,6 +1317,12 @@ use_temporary_filter_file( struct output_ctx *outctx,
 		return;
 	}
 
+	struct stat statbuf;
+	if ( stat( tmp_fn, &statbuf ) != 0 ) {
+		free( tmp_fn );
+		return;
+	}
+
 	switch ( outformat ) {
 	case PDF_FMT:
 		switch ( color_idx ) {
@@ -1350,7 +1358,6 @@ use_temporary_filter_file( struct output_ctx *outctx,
 	}
 	
 	free( tmp_fn );
-	tmp_fn = NULL;
 }
 
 /* Функция обработки файла изображения. */

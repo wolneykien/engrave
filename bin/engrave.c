@@ -1301,19 +1301,56 @@ delete_temporary_filter_file( const char *fsuf, pid_t pid,
 }
 
 static void
-dump_temporary_filter_file( FILE *out, const char *fsuf, pid_t pid,
-							int fidx, int color_idx )
+use_temporary_filter_file( struct output_ctx *outctx,
+						   const char *fsuf, pid_t pid,
+						   int fidx, int color_idx )
 {
 	const char *tmp_fn = NULL;
+	pdfcolor_t pdf_color;
 	
 	tmp_fn = get_tmp_file_name( fsuf, pid, fidx, color_idx );
 	if ( !tmp_fn ) {
 		fprintf(stderr, "Unable to get the name of a filter "	\
 				"temporary file\n");
-	} else {
-		dump_file( out, tmp_fn );
-		free( tmp_fn ); tmp_fn = NULL;
+		return;
 	}
+
+	switch ( outformat ) {
+	case PDF_FMT:
+		switch ( color_idx ) {
+		case 0:
+			pdf_color = PDFCOLOR_CYAN;
+			break;
+		case 1:
+			pdf_color = PDFCOLOR_MAGENTA;
+			break;
+		case 2:
+			pdf_color = PDFCOLOR_YELLOW;
+			break;
+		case 3:
+			pdf_color = PDFCOLOR_BLACK;
+			break;
+		}
+		if ( outctx->pdfctx ) {
+			if ( strcmp( fsuf, "ct" ) == 0 ) {
+				pdf_add_tonemap( outctx->pdfctx, tmp_fn, pdf_color );
+			} else if ( strcmp( fsuf, "m" ) == 0 ) {
+				pdf_add_bitmap( outctx->pdfctx, tmp_fn, PDFCOLOR_WHITE );
+			} else if ( strcmp( fsuf, "s" ) == 0 ) {
+				pdf_add_bitmap( outctx->pdfctx, tmp_fn, pdf_color );
+			} else {
+				fprintf( stderr,
+						 "Error: Unknown filter output class: %s\n",
+						 fsuf );
+			}
+		}
+		break;
+	default:
+		dump_file( outctx->output_file, tmp_fn );
+	}
+	
+	free( tmp_fn );
+	tmp_fn = NULL;
 }
 
 /* Функция обработки файла изображения. */
@@ -1645,13 +1682,7 @@ process (char *file_name)
 		  
 		  /* Включение тонового изображения от каждого из фильтров. */
 		  for (i = 0; i < filter_count; i++) {
-			  switch ( outformat ) {
-			  case PDF_FMT:
-				  break;
-			  default:
-				  dump_temporary_filter_file( outctx->output_file, "ct",
-											  pid, i, c );
-			  }
+			  use_temporary_filter_file( outctx, "ct", pid, i, c );
 		  }
 
 		  if ( outformat == EPS_FMT ) {
@@ -1660,13 +1691,7 @@ process (char *file_name)
 		  
 		  /* Включение маскирующего изображения от каждого из фильтров. */
 		  for (i = 0; i < filter_count; i++) {
-			  switch ( outformat ) {
-			  case PDF_FMT:
-				  break;
-			  default:
-				  dump_temporary_filter_file( outctx->output_file, "m",
-											  pid, i, c );
-			  }
+			  use_temporary_filter_file( outctx, "m", pid, i, c );
 		  }
 
 		  if ( outformat == EPS_FMT ) {
@@ -1675,17 +1700,11 @@ process (char *file_name)
 		  
 		  /* Включение рисующего изображения от каждого из фильтров. */
 		  for (i = 0; i < filter_count; i++) {
-			  switch ( outformat ) {
-			  case PDF_FMT:
-				  break;
-			  default:
-				  dump_temporary_filter_file( outctx->output_file, "s",
-											  pid, i, c );
-			  }
+			  use_temporary_filter_file( outctx, "s", pid, i, c );
 		  }
 	  }
 
-	  if ( outformat == EPS_FMT ) {
+	  if ( outctx && outformat == EPS_FMT ) {
 		  /* Печать завершающей части PostScript программы. */
 		  fprintf( outctx->output_file,
 				   "end\n"

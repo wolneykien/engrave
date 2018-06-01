@@ -57,10 +57,11 @@ typedef enum {
 } pdfcolor_t;
 
 /**
- * Открывает PDF файл #filename для записи.
+ * Открывает PDF файл #filename для записи. Размеры изображения
+ * передаются в #width и #height.
  * Возвращает указатель на контекст или #NULL в случае ошибки.
  */
-void *pdf_open_file( const char *filename );
+void * pdf_open_file( const char *filename, double width, double height );
 
 /**
  * Добавляет в PDF #ctx микроштрихофой слой из файла #tifffile.

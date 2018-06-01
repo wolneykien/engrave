@@ -39,20 +39,15 @@
 
 #include "pdfwriter.h"
 
-// standard library includes
 #include <iostream>
 #include <string>
 using namespace std;
-// end standard library includes
 
-// pdfwriter library includes
 #include <PDFWriter/PDFWriter.h>
 #include <PDFWriter/PDFPage.h>
 #include <PDFWriter/PageContentContext.h>
 #include <PDFWriter/PDFFormXObject.h>
 #include <PDFWriter/TiffUsageParameters.h>
-// end pdfwriter library includes
-
 using namespace PDFHummus;
 
 /**
@@ -62,16 +57,19 @@ class PDFCtx {
 public:
 	PDFPage   *pdfPage;
 	PageContentContext *pageContentContext;
+	double width;
+	double height;
 };
 
 PDFWriter pdfWriter;
 
 /**
- * Открывает PDF файл #filename для записи.
+ * Открывает PDF файл #filename для записи. Размеры изображения
+ * передаются в #width и #height.
  * Возвращает указатель на контекст или #NULL в случае ошибки.
  */
 void *
-pdf_open_file( const char *filename )
+pdf_open_file( const char *filename, double width, double height )
 {
 	EStatusCode status;
 	PDFCtx *ctx;
@@ -81,6 +79,8 @@ pdf_open_file( const char *filename )
 
 	ctx->pdfPage = NULL;
 	ctx->pageContentContext = NULL;
+	ctx->width = width;
+	ctx->height = height;
 
 	status = pdfWriter.StartPDF( filename, ePDFVersion14 );
 	if ( status != eSuccess ) {
@@ -91,6 +91,11 @@ pdf_open_file( const char *filename )
 	return ctx;
 }
 
+static int preparePage( PDFCtx *ctx );
+static int preparePageContext( PDFCtx *ctx );
+static CMYKRGBColor getColor( pdfcolor_t color );
+static int placeImage( PDFCtx *ctx, PDFFormXObject* image );
+
 /**
  * Добавляет в PDF #ctx микроштрихофой слой из файла #tifffile.
  * Параметр #color определяет цвет штрихов.
@@ -100,6 +105,19 @@ int
 pdf_add_bitmap( void *_ctx, const char *tifffile, pdfcolor_t color )
 {
 	PDFCtx *ctx = (PDFCtx *) _ctx;
+
+	TIFFUsageParameters params;
+	params.BWTreatment.AsImageMask = 1;
+	params.BWTreatment.OneColor = getColor( color );
+	
+	PDFFormXObject* image =
+		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
+	if ( !image ) return 1;
+	
+	int rv = placeImage( ctx, image );
+	delete image;
+
+	return rv;
 }
 
 /**
@@ -111,6 +129,20 @@ int
 pdf_add_tonemap( void *_ctx, const char *tifffile, pdfcolor_t color )
 {
 	PDFCtx *ctx = (PDFCtx *) _ctx;
+
+	TIFFUsageParameters params;
+	params.GrayscaleTreatment.AsColorMap = true;
+	params.GrayscaleTreatment.OneColor = getColor( color );
+	params.GrayscaleTreatment.ZeroColor = getColor( PDFCOLOR_WHITE );
+	
+	PDFFormXObject* image =
+		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
+	if ( !image ) return 1;
+	
+	int rv = placeImage( ctx, image );
+	delete image;
+
+	return rv;
 }
 
 /**
@@ -132,4 +164,78 @@ pdf_close( void *_ctx )
 	}
 
 	delete ctx;
+}
+
+/**
+ * Если страница в контексте отсутствует, добавляет страницу
+ * с размерами, указанными при открытии PDF-файла.
+ * Возвращает 0 в случае успеха и не-0 иначе.
+ */
+static int
+preparePage( PDFCtx *ctx )
+{
+	if ( !ctx->pdfPage ) {
+		ctx->pdfPage = new PDFPage();
+		if ( !ctx->pdfPage ) return 1;
+		ctx->pdfPage->SetMediaBox(
+		        PDFRectangle( 0, 0, ctx->width, ctx->height ) );
+	}
+
+	return 0;
+}
+
+/**
+ * Если контекст страницы отсутствует в основном контексте,
+ * добавляет его.
+ */
+static int
+preparePageContext( PDFCtx *ctx )
+{
+	if ( preparePage( ctx ) != 0 ) return 1;
+	
+	if ( !ctx->pageContentContext ) {
+		ctx->pageContentContext = 
+			pdfWriter.StartPageContentContext( ctx->pdfPage );
+		if ( !ctx->pageContentContext ) return 1;
+	}
+
+	return 0;
+}
+
+/**
+ * Возвращает цвет по его номеру.
+ */
+static CMYKRGBColor
+getColor( pdfcolor_t color )
+{
+	switch ( color ) {
+	case PDFCOLOR_BLACK:
+		return CMYKRGBColor( 0, 0, 0, 255 );
+	case PDFCOLOR_CYAN:
+		return CMYKRGBColor( 255, 0, 0, 0 );
+	case PDFCOLOR_MAGENTA:
+		return CMYKRGBColor( 0, 255, 0, 0 );
+	case PDFCOLOR_YELLOW:
+		return CMYKRGBColor( 0, 0, 255, 0 );
+	default:
+		return CMYKRGBColor( 0, 0, 0, 0 );
+	}
+}
+
+/**
+ * Помещает изображение на страницу.
+ */
+static int
+placeImage( PDFCtx *ctx, PDFFormXObject* image )
+{
+	if ( preparePageContext( ctx ) != 0 ) return 1;
+	
+	ctx->pageContentContext->q();
+	ctx->pageContentContext->Do(
+          ctx->pdfPage->GetResourcesDictionary().
+		      AddFormXObjectMapping(
+			      image->GetObjectID() ) );
+	ctx->pageContentContext->Q();
+
+	return 0;
 }

@@ -54,6 +54,10 @@
 #include <math.h>
 #include "misc.h"	/* Вспомогательные функции */
 
+#ifdef WITH_PDFWRITER
+#include "pdfwriter.h"
+#endif
+
 #define EXIT_FAILURE 1
 
 /* Имя программы, указанное в коммандной строке */
@@ -75,7 +79,6 @@ int want_verbose;
 int exit_on_error;
 
 /* Параметры файла конечного изображения. */
-int write_to_file;	/* Признак записи в файл. */
 char output_name[MAXLINE];	/* Имя файла. */
 char suffix[256];	/* Суффикс имени. */
 
@@ -118,7 +121,7 @@ int want_preview;	/* Признак записи уменьшенной копии. */
 int want_test_run = 0;
 
 /* Формат */
-typedef enum { EPS_FMT, TIFF_FMT } outformat_t;
+typedef enum { EPS_FMT, TIFF_FMT, PDF_FMT } outformat_t;
 outformat_t outformat = EPS_FMT;
 
 /* Задание списка параметров коммандной строки */
@@ -348,7 +351,6 @@ decode_switches (int argc, char **argv)
   is_raw = 0;
   filter[0] = '\0';
   suffix[0] = '\0';
-  write_to_file = 1;
   output_name[0] = '\0';
   want_preview = 0;
   want_test_run = 0;
@@ -550,6 +552,12 @@ decode_switches (int argc, char **argv)
 	  		outformat = TIFF_FMT;
 			break;
 	  	}
+	  if ( 0 == strcmp( optarg, "pdf" ) ||
+	  	   0 == strcmp( optarg, "PDF" ) )
+	  	{
+	  		outformat = PDF_FMT;
+			break;
+	  	}
 
 	/* Если аргумент не был распознан, он признаётся ошибочным,
 	 * выводится краткая справка и производится выход
@@ -680,58 +688,102 @@ filter_basename(char *filter_name, const char *a_filter)
 	}
 }
 
+struct output_ctx {
+	FILE *output_file;
+	void *pdfctx;
+};
+
+static void
+close_output( struct output_ctx* ctx )
+{
+	if ( ctx ) {
+		if ( ctx->output_file ) {
+			if ( ctx->output_file != stdout ) {
+				if ( fclose(ctx->output_file) && want_verbose ) {
+					fprintf(stderr, "Failed to close the output file\n");
+				}
+			}
+			ctx->output_file = NULL;
+		}
+		if ( ctx->pdfctx ) {
+			if ( pdf_close( ctx->pdfctx ) && want_verbose ) {
+				fprintf(stderr, "Failed to close the output PDF file\n");
+			}
+			ctx->pdfctx = NULL;
+		}
+		free( ctx );
+	}
+}
+
 /* Функция проверки корректности ввода параметров и
  * подготовки файлов к работе. */
-int
-prepare_files(const char *file_name, char *output_name, FILE **output_file)
+static int
+prepare_output( const char *file_name, char *output_name,
+				struct output_ctx **outctx )
 {
-
+  if ( outformat == TIFF_FMT ) return 0;
+	
   /* Подготовка файлов.
    * Определение имён в соответствии с указанными суффиксами. */
 
   /* Определение файла назначения.
    * Если имя или суффикс не указаны, то используются
    * значения по умолчанию. */
+	
    if (suffix[0] == '\0') {
-	strcpy(suffix, "eps");
+	   switch ( outformat ) {
+	   case PDF_FMT:
+		   strcpy(suffix, "pdf");
+		   break;
+	   default:
+		   strcpy(suffix, "eps");
+	   }
    }
+   
    if (strlen(output_name) == 0) {
-	if (file_name != NULL) {
-		set_suffix(output_name, file_name, suffix);
-	} else {
-		set_suffix(output_name, "output", suffix);
-	}
+	   if (file_name != NULL) {
+		   set_suffix(output_name, file_name, suffix);
+	   } else {
+		   set_suffix(output_name, "output", suffix);
+	   }
    }
-   if (strcmp(output_name, "-") == 0) {
-	*output_file = stdout;
-	write_to_file = 0;
-   } else {
-   	if (want_preview) {
-		strcat(output_name, "~");
-	}
-	*output_file = fopen(output_name, "w");
-	if (output_file == NULL) {
-		return EXIT_FAILURE;
-	}
-  }
 
-  /* Обработка ситуации с пустым именем входного файла. */
-  if (file_name == NULL) {
-	/* Формат TIFF не может быть прочитан из стандартного входа,
-	 * поскольку работа с этим форматом предполагает произвольный
-	 * доступ к файлу. */
-	is_raw = 1;
-  }
+   *outctx = malloc( sizeof(*outctx) );
+   if ( !*outctx ) return EXIT_FAILURE;
+   (*outctx)->output_file = NULL;
+   (*outctx)->pdfctx = NULL;
+   
+   switch ( outformat ) {
+   case PDF_FMT:
+	   (*outctx)->pdfctx =
+		   pdf_open_file( output_name,
+						  ((double) width / (double) hres) * 72,
+						  ((double) height / (double) vres) * 72 );
+	   if ( !(*outctx)->pdfctx )
+		   return EXIT_FAILURE;
+	   break;
+   default:
+	   if (strcmp(output_name, "-") == 0) {
+		   (*outctx)->output_file = stdout;
+	   } else {
+		   if (want_preview) {
+			   strcat(output_name, "~");
+		   }
+		   (*outctx)->output_file = fopen(output_name, "w");
+		   if ( !(*outctx)->output_file ) {
+			   return EXIT_FAILURE;
+		   }
+	   }
+   }
 
-  if (want_verbose) {
-    fprintf(stderr, "\nProcessing file %s\nOutput file is %s\n",	\
-	    (file_name != NULL ? file_name : "-"),			\
-	    (output_name != NULL ? output_name : "-"));
-  }
+   if (want_verbose) {
+	   fprintf(stderr, "\nProcessing file %s\nOutput file is %s\n",	\
+			   (file_name != NULL ? file_name : "-"),				\
+			   (output_name != NULL ? output_name : "-"));
+   }
 
-  /* Признак успешного завершения функции. */
-  return 0;
-
+   /* Признак успешного завершения функции. */
+   return 0;
 }
 
 /* Вспомогательная функция для открытия файла форматированного
@@ -1033,6 +1085,7 @@ parse_filters(char *f_cmd, int *filter_count, pid_t pid)
 	  outformat_str = "eps";
 	  break;
   case TIFF_FMT:
+  case PDF_FMT:
 	  outformat_str = "tiff";
 	  break;
   default:
@@ -1169,7 +1222,6 @@ ps_header(const char *file_name, FILE *output_file)
 	 		"%%%%Page: 1 1\n"
 	 		"gsave\t%% Save grafics state\n"
 	 		"true setoverprint\n");
-
 }
 
 /* Подготовка параметров файла уменьшенной копии. */
@@ -1277,7 +1329,7 @@ process (char *file_name)
   FILE *input_file = NULL;
 
   /* Параметры файла назначения. */
-  FILE *output_file = NULL;	/* Дескриптор файла назначения. */
+  struct output_ctx *outctx = NULL;
   
   /* Переменные для организации обмена информацией между
    * процессами.*/
@@ -1327,9 +1379,6 @@ process (char *file_name)
   /* Счётчик */
   int i;
 
-  /* Признак записи результата в стандартный выход. */
-  int to_stdout = 0;
-
   /* Вспомогательная функция для освобождения занятой памяти
    * в случае аварийного завершения программы. */
   void cleanup() {
@@ -1338,9 +1387,10 @@ process (char *file_name)
 		if (fclose(input_file) && want_verbose)
 			fprintf(stderr, "Failed to close the input file\n");
   	/* Закрытие выходного файла. */
-	if (output_file != NULL && output_file != stdout)
-		if (fclose(output_file) && want_verbose)
-			fprintf(stderr, "Failed to close the output file\n");
+	if ( outctx ) {
+		close_output( outctx );
+		outctx = NULL;
+	}
   	/* Закрытие коммуникационного канала. */
 	if (outpipe != NULL)
 		if (pclose(outpipe) && want_verbose)
@@ -1375,13 +1425,6 @@ process (char *file_name)
   /* Подготовка к обработке изображения. Открытие файлов.
    * Настройка коммуникационных каналов между процессами. */
 
-  if ( outformat != TIFF_FMT ) {
-	  /* Поготовка выходного файла. */
-	  if (prepare_files(file_name, output_name, &output_file) > 0) {
-		  exit(EXIT_FAILURE);
-	  }
-  }
-
   /* Печать имени и версии программы перед началом работы
    * (режим повышенной информативности). */
   if (want_verbose)
@@ -1399,16 +1442,22 @@ process (char *file_name)
   /* Если требуется обработать форматированное изображение
    * в формате TIFF, то необходимо открыть указанный файл
    * с форматированным изображением. */
-   if (!is_raw) {
-	tif = open_tif_file(file_name, &phm, &spp, &r_unit, &tiff_planar);
-   } else if (file_name != NULL && strlen(file_name) > 0) {
-   /* Иначе производится попытка открытия файла с неформатированными
-    * данными или стандартного входного потока, если имя файла не
-    * указано. */
-	input_file = fopen(file_name, "r");
-   } else {
-	input_file = stdin;
-   }
+  if (!is_raw) {
+	  tif = open_tif_file(file_name, &phm, &spp, &r_unit, &tiff_planar);
+  } else if (file_name != NULL && strlen(file_name) > 0) {
+	  /* Иначе производится попытка открытия файла с неформатированными
+	   * данными или стандартного входного потока, если имя файла не
+	   * указано. */
+	  input_file = fopen(file_name, "r");
+  } else {
+	  input_file = stdin;
+  }
+
+  /* Поготовка выходного файла. */
+  if ( prepare_output( file_name, output_name, &outctx) != 0 )
+  {
+	  exit(EXIT_FAILURE);
+  }
 
   /* Проверка, указан ли хотя бы один фильтр? */
   if (filter[0] == '\0') {
@@ -1554,79 +1603,108 @@ process (char *file_name)
   if (want_verbose)
 	  fprintf(stderr, "100%\n");
 
-  if ( NULL != output_file ) {
+  if ( outctx ) {
+	  /* Обработка файлов, созданных в результате работы фильтров. */
 	  if ( outformat == EPS_FMT ) {
-		  /* Вывод заголовка PostScript-программы и библиотечных файлов. */
-		  ps_header(file_name, output_file);
+	  /* Вывод заголовка PostScript-программы и библиотечных файлов. */
+		  ps_header( file_name, outctx->output_file );
 	  }
-  }
+	  
+	  /* Слои изображения, созданные каждым из фильтров объединяются вместе.
+	   * Последовательно обрабатываются файлы, содержащие информацию для
+	   * каждого из красителей. */
+	  for (c = c0; c <= cN; c++) {
+		  /* Если включён режим выбора отдельных красителей, то производится
+		   * проверка номера текущего красителя.*/
+		  if (c0 == 0 && (want_c || want_m || want_y || want_k)) {
+			  /* Если  текущий краситель не был индивидуально выбран, то он
+				 пропускается. */
+			  if (c == 0 && !want_c) {
+				  continue;
+			  }
+			  if (c == 1 && !want_m) {
+				  continue;
+			  }
+			  if (c == 2 && !want_y) {
+				  continue;
+			  }
+			  if (c == 3 && !want_k) {
+				  continue;
+			  }
+		  }
 
-  if ( NULL != output_file ) {
-  /* Обработка файлов, созданных в результате работы фильтров. */
+		  if ( outformat == EPS_FMT ) {
+			  fprintf( outctx->output_file,
+					  "%% Painting '%s' image color\n",
+					  get_cmykcolor_name(c) );
+			  /* В программу записывается комманда для выбора режима
+			   * работы с одним красителем. */
+			  fprintf( outctx->output_file, "%s\n", get_cmyk_color(c) );
+			  fprintf( outctx->output_file, "%% Painting CT images\n" );
+		  }
+		  
+		  /* Включение тонового изображения от каждого из фильтров. */
+		  for (i = 0; i < filter_count; i++) {
+			  switch ( outformat ) {
+			  case PDF_FMT:
+				  break;
+			  default:
+				  dump_temporary_filter_file( outctx->output_file, "ct",
+											  pid, i, c );
+			  }
+		  }
 
-  /* Фрагменты PostScript программы, созданные каждым из фильтров
-   * объединяются в одну. Последовательно обрабатываются файлы,
-   * содержащие информацию для каждого из красителей. */
-  for (c = c0; c <= cN; c++) {
-    /* Если включён режим выбора отдельных красителей, то производится
-     * проверка номера текущего красителя.*/
-    if (c0 == 0 && (want_c || want_m || want_y || want_k)) {
-      /* Если  текущий краситель не был индивидуально выбран, то он
-	 пропускается. */
-      if (c == 0 && !want_c) {
-	continue;
-      }
-      if (c == 1 && !want_m) {
-	continue;
-      }
-      if (c == 2 && !want_y) {
-	continue;
-      }
-      if (c == 3 && !want_k) {
-	continue;
-      }
-    }
+		  if ( outformat == EPS_FMT ) {
+			  fprintf( outctx->output_file, "%% Painting mask images\n" );
+		  }
+		  
+		  /* Включение маскирующего изображения от каждого из фильтров. */
+		  for (i = 0; i < filter_count; i++) {
+			  switch ( outformat ) {
+			  case PDF_FMT:
+				  break;
+			  default:
+				  dump_temporary_filter_file( outctx->output_file, "m",
+											  pid, i, c );
+			  }
+		  }
 
-	if ( outformat == EPS_FMT ) {
-	  fprintf(output_file, "%% Painting '%s' image color\n", get_cmykcolor_name(c));
-	  /* В программу записывается комманда для выбора режима
-	   * работы с одним красителем. */
-	  fprintf(output_file, "%s\n", get_cmyk_color(c));
-	  fprintf(output_file, "%% Painting CT images\n");
-	  /* Включение тонового изображения от каждого из фильтров. */
-	  for (i = 0; i < filter_count; i++)
-		  dump_temporary_filter_file( output_file, "ct", pid, i, c );
-	  fprintf(output_file, "%% Painting mask images\n");
-	  /* Включение маскирующего изображения от каждого из фильтров. */
-	  for (i = 0; i < filter_count; i++)
-		  dump_temporary_filter_file( output_file, "m", pid, i, c );
-	  fprintf(output_file, "%% Painting stroke images\n");
-	  /* Включение рисующего изображения от каждого из фильтров. */
-	  for (i = 0; i < filter_count; i++)
-		  dump_temporary_filter_file( output_file, "s", pid, i, c );
-	}
-  }
+		  if ( outformat == EPS_FMT ) {
+			  fprintf( outctx->output_file, "%% Painting stroke images\n" );
+		  }
+		  
+		  /* Включение рисующего изображения от каждого из фильтров. */
+		  for (i = 0; i < filter_count; i++) {
+			  switch ( outformat ) {
+			  case PDF_FMT:
+				  break;
+			  default:
+				  dump_temporary_filter_file( outctx->output_file, "s",
+											  pid, i, c );
+			  }
+		  }
+	  }
 
-  if ( outformat == EPS_FMT ) {
-	  /* Печать завершающей части PostScript программы. */
-	  fprintf(output_file,
-			  "end\n"
-			  "grestore\t%% Restore previous graphic state\n"
-			  "showpage\n"
-			  "%%%%EOF\n");
-  }
+	  if ( outformat == EPS_FMT ) {
+		  /* Печать завершающей части PostScript программы. */
+		  fprintf( outctx->output_file,
+				   "end\n"
+				   "grestore\t%% Restore previous graphic state\n"
+				   "showpage\n"
+				   "%%%%EOF\n");
+	  }
   
-  } /* if ( NULL != output_file ) */
+  }
 
   /* Получение признака записи результата в стандартный выход. */
-  to_stdout = output_file == stdout;
+  int to_stdout = ( outctx && outctx->output_file == stdout);
 
   /* Выполнение процедуры освобождения занятых ресурсов. */
   (*pop_cleanup())();
 
   /* Если указан соответствующий признак, то производится добавление к
    * PostScript-файлу уменьшенной копии иображения в формате TIFF. */
-  if (want_preview && !to_stdout && NULL != output_file ) {
+  if (want_preview && !to_stdout ) {
 	  if ( outformat == EPS_FMT ) {
 		  /* Добавление уменьшенной копии к PostScript-файлу. */
 		  add_preview(output_name, thumbnail_name);

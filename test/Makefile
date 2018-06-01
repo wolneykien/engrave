@@ -32,6 +32,6 @@ get_height = $(shell echo $$((($(call get_width_height,$(1),s/^[^x]\+x//) * $(DP
 
 clean:
 	rm -fv *.$(FORMAT) *.bbox
-	rm -fv *.*lpi.*.$(SUF)
+	rm -fv *.*lpi.*dpi.$(FORMAT).*.$(SUF)
 
 .SECONDARY:

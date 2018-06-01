@@ -125,7 +125,10 @@ pdf_add_bitmap( void *_ctx, const char *tifffile, pdfcolor_t color )
 	
 	PDFFormXObject* image =
 		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
-	if ( !image ) return 1;
+	if ( !image ) {
+		cerr << "Error reading the image file!\n";
+		return 1;
+	}
 
 	int rv = addImage( ctx, image );
 	delete image;
@@ -152,7 +155,10 @@ pdf_add_tonemap( void *_ctx, const char *tifffile, pdfcolor_t color )
 	
 	PDFFormXObject* image =
 		pdfWriter.CreateFormXObjectFromTIFFFile( tifffile, params );
-	if ( !image ) return 1;
+	if ( !image ) {
+		cerr << "Error reading the image file!\n";
+		return 1;
+	}
 
 	int rv = addImage( ctx, image );
 	delete image;

@@ -174,11 +174,13 @@ static int placeImages( PDFCtx *ctx );
 int
 pdf_close( void *_ctx )
 {
+    int ret = 0;
 	PDFCtx *ctx = (PDFCtx *) _ctx;
 
 	if ( ctx ) {
 		if ( placeImages( ctx ) != 0 ) {
 			cerr << "Error placing images!\n";
+            ret = 1;
 		}
 		if ( ctx->pageContentContext ) {
 			cerr << "Close PDF page context\n";
@@ -194,6 +196,7 @@ pdf_close( void *_ctx )
 	}
 
 	delete ctx;
+    return ret;
 }
 
 /**
@@ -287,6 +290,8 @@ addImage( PDFCtx *ctx, PDFFormXObject* image )
 		objlist->next = newObj;
 	else
 		ctx->objlist = newObj;
+
+    return 0;
 }
 
 
